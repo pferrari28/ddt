@@ -437,6 +437,10 @@ const clone = o => JSON.parse(JSON.stringify(o));
 
 // ---------- il documento ----------
 function annotDi(r){ const d = (r && r.dati) || {}; return String(d.annotazioni || (d.annotazioni_lista || [])[0] || '').trim(); }
+function dicRiflusse(arr){   // il testo OCQ-PR va su 3 righe, così il carattere resta sempre della stessa grandezza
+  const v = (arr || []).map(x => String(x).trim()).filter(Boolean);
+  return /SFRIDI DI PARMIGIANO-REGGIANO/i.test(v.join(' ')) && /OCQ-PR/i.test(v.join(' ')) && v.length < 3 ? ['SFRIDI DI PARMIGIANO-REGGIANO', 'DESTINATI AD ULTERIORE LAVORAZIONE', 'IN STABILIMENTO RICONOSCIUTO DA OCQ-PR'] : v;
+}
 function nuovoDoc(dati){
   dati = dati || {};
   const d = {
@@ -448,7 +452,7 @@ function nuovoDoc(dati){
     vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: dati.targa || '', annotazioni: annotDi({ dati }), bancali: '',
     copie: dati.copie || CFG.copie || 1,
   };
-  const dic = (dati.diciture || []).map(x => String(x).trim()).filter(Boolean).slice(0, d.righe.length);
+  const dic = dicRiflusse(dati.diciture).slice(0, d.righe.length);
   dic.forEach((t, i) => { d.righe[d.righe.length - dic.length + i].desc = t; });
   return d;
 }
@@ -737,7 +741,7 @@ $('rb-wrap').addEventListener('click', async ev => {
 });
 
 // ---------- SALVA E STAMPA ----------
-function dicDi(d){ const r = DEST.find(x => x.id === d.dest_id); return ((r && r.dati.diciture) || []).map(x => String(x).trim()); }
+function dicDi(d){ const r = DEST.find(x => x.id === d.dest_id); return dicRiflusse((r && r.dati.diciture) || []); }
 function haMerce(d){ if (d.sfr) return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim()); const dic = dicDi(d); return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim() || (String(r.desc).trim() && !dic.includes(String(r.desc).trim()))); }
 function righeUtili(d){ return d.righe.filter(r => rigaUsata(d, r)).map(r => d.sfr ? { ...r, desc: SFR[d.sfr].desc } : r); }
 async function salvaEStampa(stampa){
