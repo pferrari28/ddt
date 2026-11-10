@@ -107,10 +107,11 @@ table.t tfoot td{font-weight:700;background:var(--head);}
 .sheet td.b{font-weight:700;}
 .sheet td.ced{text-align:center;font-weight:700;font-size:11pt;}
 .sheet td.nob{border:0;}
+.sheet td.gt{border-bottom:0;} .sheet td.gm{border-top:0;border-bottom:0;} .sheet td.gb{border-top:0;}
 .sheet td.title{text-align:center;font-size:12.5pt;}
 .sheet td.nn{font-size:17pt;text-align:center;text-decoration:underline;}
-.sheet td.numero{font-size:15pt;font-weight:700;}
-.sheet td.dt{font-weight:700;font-size:11pt;text-decoration:underline;text-align:center;}
+.sheet td.numero{font-size:19pt;font-weight:700;text-align:center;}
+.sheet td.dt{font-weight:700;font-size:13.5pt;text-decoration:underline;text-align:center;}
 .sheet td.small{font-size:7.5pt;text-align:center;}
 .sheet td.x{text-align:center;font-weight:700;padding:0;position:relative;}
 .sheet td.wrap{white-space:normal;}
@@ -424,7 +425,8 @@ function fmtMigliaia(el){                            // mentre si scrive: punto 
   while (pos < out.length && c < sig2) { if (/[0-9,]/.test(out[pos])) c++; pos++; }
   try { el.setSelectionRange(pos, pos); } catch (e) {}
 }
-function kgTxt(n){ return n === null || n === undefined || Number.isNaN(n) ? '' : fmtIT(n, 0, 2); }
+function kgTxt(n){ return n === null || n === undefined || Number.isNaN(n) ? '' : fmtIT(n, 2, 2); }
+function kgVis(v){ const n = numKg(v); return n === null || Number.isNaN(n) ? String(v ?? '') : kgTxt(n); }   // 25 -> 25,00
 function toast(m, bad){ const t = $('toast'); t.textContent = m; t.classList.toggle('bad', !!bad); t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), bad ? 6000 : 3200); }
 function openModal(html, wide){ $('modal').className = 'modal' + (wide ? ' wide' : ''); $('modal').innerHTML = html; $('modal-overlay').classList.add('show'); }
 function closeModal(){ $('modal-overlay').classList.remove('show'); $('modal').innerHTML = ''; }
@@ -466,11 +468,11 @@ function sheetHTML(d, mode, ctx){
     ? `<input data-k="${path}" value="${esc(getp(d, path))}" ${ph ? `placeholder="${esc(ph)}"` : ''} autocomplete="off" spellcheck="false" ${cls ? `class="${cls}"` : ''}>`
     : esc(getp(d, path));
   const KG = path => E
-    ? `<input data-k="${path}" data-kg="1" inputmode="decimal" value="${esc(getp(d, path))}" data-expr="${esc(getp(d, path.replace(/kg$/, 'kg_expr')) || '')}" autocomplete="off">`
-    : esc(getp(d, path));
+    ? `<input data-k="${path}" data-kg="1" inputmode="decimal" value="${esc(kgVis(getp(d, path)))}" data-expr="${esc(getp(d, path.replace(/kg$/, 'kg_expr')) || '')}" autocomplete="off">`
+    : esc(kgVis(getp(d, path)));
   const X = (on, key) => E ? `<button type="button" class="xbtn" data-chk="${key}" tabindex="-1">${on ? 'X' : ''}</button>` : (on ? 'X' : '');
   const am = d.a_mezzo, S = d.sfr ? SFR[d.sfr] : null;
-  const pesoShown = d.peso_manuale ? d.peso : kgTxt(sommaKg(d));
+  const pesoShown = d.peso_manuale ? kgVis(d.peso) : kgTxt(sommaKg(d));
   const dataRit = ctx.ritiro_data || (E ? oggiISO() : ''), oraRit = ctx.ritiro_ora || (E ? oraHHMM() : '');
   const destVuota = d.dest.every(x => !String(x).trim());
   const destLine = i => E ? T('dest.' + i, 'c b', i === 1 ? 'Idem' : '') : (destVuota ? (i === 1 ? 'Idem' : '') : esc(d.dest[i]));
@@ -479,14 +481,14 @@ function sheetHTML(d, mode, ctx){
   const w = [9.71, 9.71, 9.71, 9.71, 9.71, 2.71, 9.71, 2.71, 9.71, 2.71, 9.71], tot = w.reduce((a, b) => a + b, 0);
   let h = `<table class="sheet"><colgroup>${w.map(x => `<col style="width:${(x / tot * 100).toFixed(3)}%">`).join('')}</colgroup>`;
   h += H(8.1, `<td colspan="4" class="lab" style="font-size:6.5pt">CEDENTE: Ditta, Dipendenza, Domicilio o Residenza, Partita IVA</td><td colspan="7" rowspan="2" class="title">DOCUMENTO DI TRASPORTO (D.d.t.)</td>`);
-  h += H(18.95, `<td colspan="4" class="ced">${esc(CEDENTE[0])}</td>`);
-  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[1])}</td><td colspan="7" class="small">D.PR. 472 del 14.08.1996 - D.PR. 696 del 21.12.1996</td>`);
-  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[2])}</td><td rowspan="2" class="lab nn" style="background:#fff">N.</td><td colspan="3" rowspan="2" class="numero"><span style="font-weight:700;text-decoration:underline;font-size:11pt">c/</span> ${numero}</td><td rowspan="2" class="lab" style="font-size:10pt;font-weight:700;text-decoration:underline">Data</td><td colspan="2" rowspan="2" class="dt">${E ? `<input type="date" data-k="data" value="${esc(d.data)}" style="font-weight:700;text-align:center">` : fmtData(d.data)}</td>`);
-  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[3])}</td>`);
-  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[4])}</td><td class="lab m" style="background:#fff;font-size:10pt;text-align:left">a mezzo:</td><td class="x">${X(am === 'cedente', 'a_mezzo:cedente')}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${X(am === 'cessionario', 'a_mezzo:cessionario')}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${X(am === 'vettore', 'a_mezzo:vettore')}</td><td class="lab" style="background:#fff">vettore</td>`);
+  h += H(18.95, `<td colspan="4" class="ced gt">${esc(CEDENTE[0])}</td>`);
+  h += H(18.95, `<td colspan="4" class="ced gm" style="font-size:10pt">${esc(CEDENTE[1])}</td><td colspan="7" class="small">D.PR. 472 del 14.08.1996 - D.PR. 696 del 21.12.1996</td>`);
+  h += H(18.95, `<td colspan="4" class="ced gm" style="font-size:10pt">${esc(CEDENTE[2])}</td><td rowspan="2" class="lab nn" style="background:#fff">N.</td><td colspan="3" rowspan="2" class="numero"><span style="font-weight:700;text-decoration:underline;font-size:12pt">c/</span>&nbsp;${numero}</td><td rowspan="2" class="lab" style="font-size:10pt;font-weight:700;text-decoration:underline">Data</td><td colspan="2" rowspan="2" class="dt">${E ? `<input type="date" data-k="data" value="${esc(d.data)}" style="font-weight:700;text-align:center">` : fmtData(d.data)}</td>`);
+  h += H(18.95, `<td colspan="4" class="ced gm" style="font-size:10pt">${esc(CEDENTE[3])}</td>`);
+  h += H(18.95, `<td colspan="4" class="ced gb" style="font-size:10pt">${esc(CEDENTE[4])}</td><td class="lab m" style="background:#fff;font-size:10pt;text-align:left">a mezzo:</td><td class="x">${X(am === 'cedente', 'a_mezzo:cedente')}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${X(am === 'cessionario', 'a_mezzo:cessionario')}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${X(am === 'vettore', 'a_mezzo:vettore')}</td><td class="lab" style="background:#fff">vettore</td>`);
   h += H(18.95, `<td colspan="2" class="lab" style="background:#fff;font-size:8pt;text-align:left">Partenza dal magazzino di</td><td colspan="2" class="c b">${esc(PARTENZA)}</td><td colspan="7"></td>`);
   h += H(15.95, `<td colspan="4" class="lab">CESSIONARIO: Ditta, Dipendenza, Domicilio o Residenza</td><td colspan="7" class="lab" style="font-size:7pt">LUOGO DI DESTINAZIONE (se diverso dall'indirizzo del cessionario) E VARIAZIONI</td>`);
-  for (let i = 0; i < 3; i++) h += H(18.95, `<td colspan="4" class="ced">${T('ced.' + i, 'c b')}</td><td colspan="7" class="ced">${destLine(i)}</td>`);
+  for (let i = 0; i < 3; i++) { const g = ['gt', 'gm', 'gb'][i]; h += H(18.95, `<td colspan="4" class="ced ${g}">${T('ced.' + i, 'c b')}</td><td colspan="7" class="ced ${g}">${destLine(i)}</td>`); }
   h += H(15.95, `<td colspan="4" class="lab">CAUSALE DEL TRASPORTO</td><td class="lab">VS. ORDINE N.</td><td></td><td class="lab">DATA</td><td colspan="2" class="lab">Cod. scarico</td><td class="x">${X(d.in_conto, 'in_conto')}</td><td class="lab">IN CONTO</td>`);
   h += H(15.95, `<td colspan="4" class="c b">${T('causale', 'c b')}</td><td class="c">${T('ord_num', 'c')}</td><td></td><td class="c">${T('ord_data', 'c')}</td><td colspan="2" class="c">${T('cod_scarico', 'c')}</td><td class="x">${X(d.a_saldo, 'a_saldo')}</td><td class="lab">A SALDO</td>`);
   if (!S) {
@@ -507,9 +509,9 @@ function sheetHTML(d, mode, ctx){
   h += H(14.1, `<td colspan="3" class="lab">ASPETTO ESTERIORE DEI BENI</td><td class="lab">N. COLLI</td><td colspan="2" class="lab">PESO KG.</td><td colspan="2" class="lab">PORTO</td><td rowspan="2" class="lab" style="font-size:10pt">TOTALE €</td><td colspan="2" rowspan="2" class="c">${T('totale', 'c')}</td>`);
   h += H(18.95, `<td colspan="3" class="c b" style="font-size:11pt">${T('aspetto', 'c b')}</td><td class="c b">${T('colli', 'c b')}</td><td colspan="2" class="c b">${E ? `<input data-k="peso" data-kg="1" data-peso="1" class="${d.peso_manuale ? '' : 'auto'}" value="${esc(pesoShown)}" inputmode="decimal" style="text-align:center;font-weight:700">` : esc(pesoShown)}</td><td colspan="2" class="c">${T('porto', 'c')}</td>`);
   h += H(12, `<td colspan="3" class="lab" style="font-size:8pt">VETTORE: ditta, domicilio o residenza</td><td colspan="2" class="lab" style="font-size:7pt">DATA E ORA DEL RITIRO</td><td colspan="6" rowspan="4"></td>`);
-  h += H(12, `<td colspan="3" class="c">${T('vettore.0', 'c')}</td><td rowspan="2" class="lab" style="font-size:9pt">DATA</td><td rowspan="2" class="lab" style="font-size:9pt">ORA</td>`);
-  h += H(14.1, `<td colspan="3" class="c">${T('vettore.1', 'c')}</td>`);
-  h += H(14.1, `<td colspan="3" class="c">${T('vettore.2', 'c')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
+  h += H(12, `<td colspan="3" class="c gt">${T('vettore.0', 'c')}</td><td rowspan="2" class="lab" style="font-size:9pt">DATA</td><td rowspan="2" class="lab" style="font-size:9pt">ORA</td>`);
+  h += H(14.1, `<td colspan="3" class="c gm">${T('vettore.1', 'c')}</td>`);
+  h += H(14.1, `<td colspan="3" class="c gb">${T('vettore.2', 'c')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
   h += H(14.1, `<td colspan="5" class="lab" style="font-size:9.5pt">Consegna o inizio trasporto a mezzo</td><td class="x" style="font-size:9pt">${am === 'cedente' ? 'X' : ''}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${am === 'cessionario' ? 'X' : ''}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${am === 'vettore' ? 'X' : ''}</td><td class="lab" style="background:#fff">vettore</td>`);
   h += H(14.1, `<td colspan="5" class="lab">ANNOTAZIONI - VARIAZIONI</td><td colspan="6" class="nob"></td>`);
   h += H(14.1, `<td colspan="2" class="lab" style="font-size:9.5pt;text-align:left">TARGA AUTOMEZZO</td><td colspan="4">${T('targa', 'c b')}</td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CONDUCENTE</td>`);
