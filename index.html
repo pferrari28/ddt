@@ -155,6 +155,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
     <nav class="tabs" id="tabs">
       <button class="tab-btn" data-p="compila">Nuovo DDT</button>
       <button class="tab-btn" data-p="registro">Registro bolle</button>
+      <button class="tab-btn" data-p="merce" id="tab-merce" hidden>Merce uscita</button>
       <button class="tab-btn" data-p="rubrica">Destinatari</button>
       <button class="tab-btn" data-p="impostazioni" id="tab-imp" hidden>Impostazioni</button>
     </nav>
@@ -210,6 +211,23 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div><label class="l">Stato</label><select class="f" id="rg-st"><option value="">Tutte</option><option value="ok">Valide</option><option value="ann">Annullate</option></select></div>
       </div>
       <div class="tw" id="rg-wrap"></div>
+    </section>
+
+    <!-- ============ MERCE USCITA (solo Paolo) ============ -->
+    <section id="p-merce" hidden>
+      <div class="page-head">
+        <div><h2>Merce uscita</h2><p>Tutte le righe di tutti i DDT in un unico elenco. Togliere una riga da qui non cambia il DDT né il registro bolle.</p></div>
+        <button class="btn" id="mu-xlsx">⬇ Esporta Excel</button>
+      </div>
+      <div class="bar">
+        <div><label class="l">Anno</label><select class="f" id="mu-anno" style="width:100px"></select></div>
+        <div class="grow"><label class="l">Cerca (descrizione, lotto, numero)</label><input class="f" id="mu-q" placeholder="es. croste, 26P1234..."></div>
+        <div><label class="l">Dal</label><input class="f" type="date" id="mu-da"></div>
+        <div><label class="l">Al</label><input class="f" type="date" id="mu-a"></div>
+        <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem"><input type="checkbox" id="mu-tolte"> Mostra anche le righe tolte</label></div>
+        <button class="btn sec" id="mu-togli-sel" disabled>Togli le selezionate</button>
+      </div>
+      <div class="tw" id="mu-wrap"></div>
     </section>
 
     <!-- ============ RUBRICA ============ -->
@@ -288,6 +306,9 @@ const $ = id => document.getElementById(id);
 let ME = null, DEST = [], CONT = {}, CFG = { copie: 1 }, BOLLE = [], ANNO = new Date().getFullYear();
 let DOC = null;                 // documento in compilazione
 let BUSY = false;
+let ESCL = new Set();            // righe tolte dall'elenco «Merce uscita» (chiave idBolla|numeroRiga)
+let ESCL_OK = true;
+const MU = { q: '', da: '', a: '', tolte: false, sel: new Set() };
 
 // ---------- utilità ----------
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -609,6 +630,7 @@ async function salvaEStampa(stampa){
     if (editing) {
       const r = await sb.rpc('ddt_modifica', { p_id: d.edit_id, p: payload }); if (r.error) throw r.error; data = r.data;
       const i = BOLLE.findIndex(x => x.id === data.id); if (i >= 0) BOLLE[i] = data; else BOLLE.unshift(data);
+      [...ESCL].filter(k => k.startsWith(data.id + '|')).forEach(k => ESCL.delete(k));
     } else {
       const r = await sb.rpc('ddt_emetti', { p: payload }); if (r.error) throw r.error; data = r.data;
       BOLLE.unshift(data); if ((CONT[data.anno] || 0) < data.numero) CONT[data.anno] = data.numero;
@@ -670,6 +692,7 @@ function paintAnni(){
   const anni = new Set([new Date().getFullYear(), ANNO, ...Object.keys(CONT).map(Number)]);
   const arr = [...anni].sort((a, b) => b - a);
   $('rg-anno').innerHTML = arr.map(a => `<option>${a}</option>`).join(''); $('rg-anno').value = ANNO;
+  $('mu-anno').innerHTML = $('rg-anno').innerHTML; $('mu-anno').value = ANNO;
   $('im-anno').innerHTML = arr.map(a => `<option>${a}</option>`).join(''); $('im-anno').value = new Date().getFullYear();
   $('im-ultimo').value = CONT[Number($('im-anno').value)] || 0;
 }
@@ -677,7 +700,9 @@ $('rg-q').addEventListener('input', () => { REG.q = $('rg-q').value; paintRegist
 $('rg-da').addEventListener('input', () => { REG.da = $('rg-da').value; paintRegistro(); });
 $('rg-a').addEventListener('input', () => { REG.a = $('rg-a').value; paintRegistro(); });
 $('rg-st').addEventListener('change', () => { REG.st = $('rg-st').value; paintRegistro(); });
-$('rg-anno').addEventListener('change', async () => { ANNO = Number($('rg-anno').value); await caricaBolle(); paintRegistro(); });
+async function cambiaAnno(v){ ANNO = Number(v); await caricaBolle(); $('rg-anno').value = ANNO; $('mu-anno').value = ANNO; paintRegistro(); paintMerce(); }
+$('rg-anno').addEventListener('change', () => cambiaAnno($('rg-anno').value));
+$('mu-anno').addEventListener('change', () => cambiaAnno($('mu-anno').value));
 $('rg-wrap').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]'); if (!b) return;
   const row = BOLLE.find(x => x.id === b.dataset.id); if (!row) return;
@@ -728,6 +753,73 @@ $('btn-regprint').addEventListener('click', () => {
   setTimeout(() => window.print(), 80);
 });
 
+// ---------- merce uscita (solo Paolo) ----------
+function righeMerce(){
+  const out = [];
+  BOLLE.filter(b => !b.annullata).slice().sort((a, b) => a.numero - b.numero).forEach(b => (b.dati.righe || []).forEach((r, i) => {
+    const kg = numKg(r.kg), lotto = String(r.lotto || '').trim();
+    if ((kg === null || Number.isNaN(kg)) && !lotto) return;            // righe di sola dicitura: non sono merce
+    const key = b.id + '|' + i;
+    out.push({ key, b, i, numero: b.numero, data: b.data, desc: String(r.desc || '').trim(), kg: Number.isNaN(kg) ? null : kg, lotto, tolta: ESCL.has(key) });
+  }));
+  return out;
+}
+function merceFiltrata(){
+  const q = MU.q.trim().toLowerCase();
+  return righeMerce().filter(r => {
+    if (r.tolta && !MU.tolte) return false;
+    if (MU.da && r.data < MU.da) return false;
+    if (MU.a && r.data > MU.a) return false;
+    if (q && !(`${r.numero} ${r.desc} ${r.lotto}`).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+function paintMerce(){
+  if (!ME || !ME.admin) return;
+  const lista = merceFiltrata(), valide = lista.filter(r => !r.tolta);
+  const tot = valide.reduce((s, r) => s + (r.kg || 0), 0);
+  $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
+  if (!ESCL_OK) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
+  $('mu-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th>N. DDT</th><th>Data</th><th>Descrizione</th><th>Kg</th><th>Lotto</th><th></th></tr></thead><tbody>${
+    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td>${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n"><b>${r.numero}</b></td><td class="n">${fmtData(r.data)}</td><td>${esc(r.desc)}</td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 0, 2)}</td><td>${esc(r.lotto)}</td>
+      <td class="act st">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
+  }</tbody><tfoot><tr><td colspan="4">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td colspan="2"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
+}
+async function togliRighe(keys){
+  const righe = keys.map(k => { const [id, i] = k.split('|'); return { bolla_id: id, riga: Number(i), anno: ANNO }; });
+  const { error } = await sb.from('ddt_merce_escluse').insert(righe);
+  if (error) { toast('Non riuscito: ' + error.message, true); return; }
+  keys.forEach(k => { ESCL.add(k); MU.sel.delete(k); }); paintMerce();
+  toast(keys.length === 1 ? 'Riga tolta dall\'elenco (il DDT non cambia)' : keys.length + ' righe tolte dall\'elenco (i DDT non cambiano)');
+}
+$('mu-q').addEventListener('input', () => { MU.q = $('mu-q').value; paintMerce(); });
+$('mu-da').addEventListener('input', () => { MU.da = $('mu-da').value; paintMerce(); });
+$('mu-a').addEventListener('input', () => { MU.a = $('mu-a').value; paintMerce(); });
+$('mu-tolte').addEventListener('change', () => { MU.tolte = $('mu-tolte').checked; paintMerce(); });
+$('mu-togli-sel').addEventListener('click', () => togliRighe([...MU.sel]));
+$('mu-wrap').addEventListener('change', ev => {
+  const t = ev.target;
+  if (t.id === 'mu-all') { merceFiltrata().filter(r => !r.tolta).forEach(r => t.checked ? MU.sel.add(r.key) : MU.sel.delete(r.key)); paintMerce(); }
+  else if (t.dataset.sel) { t.checked ? MU.sel.add(t.dataset.sel) : MU.sel.delete(t.dataset.sel); paintMerce(); }
+});
+$('mu-wrap').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-a]'); if (!b) return;
+  if (b.dataset.a === 'del') togliRighe([b.dataset.key]);
+  else if (b.dataset.a === 'rip') {
+    const [id, i] = b.dataset.key.split('|');
+    const { error } = await sb.from('ddt_merce_escluse').delete().eq('bolla_id', id).eq('riga', Number(i));
+    if (error) { toast('Non riuscito: ' + error.message, true); return; }
+    ESCL.delete(b.dataset.key); paintMerce(); toast('Riga ripristinata');
+  }
+});
+$('mu-xlsx').addEventListener('click', () => {
+  if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
+  const righe = merceFiltrata().filter(r => !r.tolta).map(r => ({ 'N. DDT': r.numero, 'Data': fmtData(r.data), 'Descrizione': r.desc, 'Kg': r.kg ?? '', 'Lotto': r.lotto }));
+  if (!righe.length) { toast('Non ci sono righe da esportare.', true); return; }
+  const ws = XLSX.utils.json_to_sheet(righe); ws['!cols'] = [8, 11, 48, 12, 18].map(x => ({ wch: x }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Merce uscita'); XLSX.writeFile(wb, `Merce_uscita_${ANNO}.xlsx`);
+});
+
 // ---------- impostazioni (Paolo) ----------
 $('im-anno').addEventListener('change', () => { $('im-ultimo').value = CONT[Number($('im-anno').value)] || 0; });
 $('im-salva-num').addEventListener('click', async () => {
@@ -748,11 +840,11 @@ $('im-salva-copie').addEventListener('click', async () => {
 function go(p){ location.hash = '#' + p; }
 function route(){
   let p = (location.hash || '#compila').slice(1);
-  if (!['compila', 'registro', 'rubrica', 'impostazioni'].includes(p)) p = 'compila';
-  if (p === 'impostazioni' && !(ME && ME.admin)) p = 'compila';
-  for (const s of ['compila', 'registro', 'rubrica', 'impostazioni']) $('p-' + s).hidden = s !== p;
+  if (!['compila', 'registro', 'merce', 'rubrica', 'impostazioni'].includes(p)) p = 'compila';
+  if ((p === 'impostazioni' || p === 'merce') && !(ME && ME.admin)) p = 'compila';
+  for (const s of ['compila', 'registro', 'merce', 'rubrica', 'impostazioni']) $('p-' + s).hidden = s !== p;
   document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.p === p));
-  if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'compila') paintNextNum();
+  if (p === 'merce') paintMerce(); if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'compila') paintNextNum();
 }
 $('tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab-btn'); if (b) go(b.dataset.p); });
 window.addEventListener('hashchange', route);
@@ -761,6 +853,11 @@ window.addEventListener('hashchange', route);
 async function caricaBolle(){
   const { data, error } = await sb.from('ddt_bolle').select('*').eq('anno', ANNO).order('numero', { ascending: false }).limit(5000);
   if (error) throw error; BOLLE = data || [];
+  ESCL = new Set(); ESCL_OK = true; MU.sel = new Set();
+  if (ME && ME.admin) {
+    const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO);
+    if (r.error) ESCL_OK = false; else (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga));
+  }
 }
 async function loadData(manuale){
   setStatus('Caricamento…');
@@ -775,7 +872,7 @@ async function loadData(manuale){
     (f.data || []).forEach(x => { if (x.chiave === 'copie') CFG.copie = Number(x.valore) || 1; });
     await caricaBolle();
     setStatus('Connesso', 'live');
-    paintDestSelect(); paintAnni(); paintRubrica(); paintRegistro(); paintNextNum(); $('im-copie').value = CFG.copie;
+    paintDestSelect(); paintAnni(); paintRubrica(); paintRegistro(); paintMerce(); paintNextNum(); $('im-copie').value = CFG.copie;
     if (manuale) toast('Dati aggiornati');
   } catch (e) {
     setStatus('Errore dati', 'err');
@@ -805,7 +902,7 @@ async function startApp(){
   if (!NOMI[email]) { showLogin(); return; }
   ME = { email, nome: NOMI[email], admin: email === 'admin@lotti.local' };
   $('utente').innerHTML = 'Utente: <b style="color:#fff">' + esc(ME.nome) + '</b>';
-  $('tab-imp').hidden = !ME.admin;
+  $('tab-imp').hidden = !ME.admin; $('tab-merce').hidden = !ME.admin;
   DOC = DOC || nuovoDoc(); paintSheet();
   await loadData(); route();
 }

@@ -61,11 +61,22 @@ create table if not exists public.ddt_bolle (
 );
 create index if not exists ddt_bolle_data_idx on public.ddt_bolle (data desc, numero desc);
 
+-- Righe tolte dall'elenco «Merce uscita» (solo Paolo). Il DDT non cambia.
+create table if not exists public.ddt_merce_escluse (
+  bolla_id uuid not null references public.ddt_bolle (id) on delete cascade,
+  riga int not null,
+  anno int not null,
+  creato_il timestamptz not null default now(),
+  primary key (bolla_id, riga)
+);
+create index if not exists ddt_merce_escluse_anno_idx on public.ddt_merce_escluse (anno);
+
 -- 3) permessi (RLS) ----------------------------------------------------
 alter table public.ddt_destinatari enable row level security;
 alter table public.ddt_contatori   enable row level security;
 alter table public.ddt_config      enable row level security;
 alter table public.ddt_bolle       enable row level security;
+alter table public.ddt_merce_escluse enable row level security;
 
 drop policy if exists ddt_dest_all on public.ddt_destinatari;
 create policy ddt_dest_all on public.ddt_destinatari for all to authenticated
@@ -79,6 +90,10 @@ create policy ddt_conf_sel on public.ddt_config for select to authenticated usin
 
 drop policy if exists ddt_bolle_sel on public.ddt_bolle;
 create policy ddt_bolle_sel on public.ddt_bolle for select to authenticated using (public.ddt_ok());
+drop policy if exists ddt_escl_admin on public.ddt_merce_escluse;
+create policy ddt_escl_admin on public.ddt_merce_escluse for all to authenticated
+  using (public.ddt_is_admin()) with check (public.ddt_is_admin());
+
 -- le bolle si creano/annullano solo con le funzioni qui sotto (numero sempre univoco)
 
 -- 4) funzioni ------------------------------------------------------------
@@ -139,6 +154,7 @@ begin
     copie = greatest(coalesce(nullif(p ->> 'copie', '')::int, 1), 1),
     dati = p
   where id = p_id returning * into v_row;
+  delete from public.ddt_merce_escluse where bolla_id = p_id;   -- le righe potrebbero essere cambiate
   return to_jsonb(v_row);
 end $$;
 
