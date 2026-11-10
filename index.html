@@ -99,6 +99,10 @@ table.t tfoot td{font-weight:700;background:var(--head);}
 
 /* ===== modulo DDT (stesso disegno su schermo e in stampa) ===== */
 .sheetwrap{overflow:auto;padding-bottom:10px;}
+.actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+#p-compila > .toolbar, #p-compila > .actions, #p-compila > .card, #p-compila > .sheetwrap{max-width:190mm;margin-left:auto;margin-right:auto;}
+#p-compila > .sheetwrap .sheet{margin:0 auto;}
+#p-compila > .card#sf-ledger{max-width:none;}
 .sheet{border-collapse:collapse;table-layout:fixed;width:190mm;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;color:#000;background:#fff;}
 .sheet td{border:.7pt solid #000;padding:0 3px;overflow:hidden;white-space:nowrap;vertical-align:middle;line-height:1.1;text-align:left;}
 .sheet td.lab{background:#E7E6E6;text-align:center;font-size:8pt;}
@@ -202,8 +206,9 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div class="cop"><label class="l" style="margin-top:0">Copie</label><input class="f" id="in-copie" type="number" min="1" max="20" value="1"></div>
         <button class="btn sec" id="btn-svuota">Svuota</button>
       </div>
+      <div class="actions" id="act-top" style="margin-bottom:12px"></div>
       <div class="sheetwrap edit" id="sheet-edit"></div>
-      <div style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <div class="actions" id="act-main" style="margin-top:18px">
         <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
         <button class="btn sec" id="btn-bozza" title="Salva il DDT a metà, senza numero: lo riprendi quando vuoi">📝 Salva bozza</button>
         <button class="btn sec" id="btn-salva-solo" title="Assegna il numero e salva il DDT senza mandarlo alla stampante">💾 Salva senza stampare</button>
@@ -577,6 +582,17 @@ $('sel-dest').addEventListener('change', () => applicaDestinatario($('sel-dest')
 $('btn-svuota').addEventListener('click', () => { DOC = DOC.sfr ? nuovoDocSfr(DOC.sfr) : docGenerico(); paintSheet(); paintDestSelect(); paintNextNum(); });
 $('btn-nuovo-dest').addEventListener('click', () => { DOC = nuovoDoc({ a_mezzo: 'vettore' }); paintSheet(); paintDestSelect(); const f = document.querySelector('#sheet-edit [data-k="ced.0"]'); if (f) f.focus(); toast('Scrivi il destinatario nel modulo, poi «Salva in rubrica» (o salverò alla stampa).'); });
 $('in-copie').addEventListener('input', () => { DOC.copie = Math.max(1, Math.min(20, parseInt($('in-copie').value, 10) || 1)); });
+
+// tasti di salvataggio/stampa anche in alto: copie sincronizzate con quelle in basso
+(function(){
+  const top = $('act-top'), srcs = ['btn-stampa', 'btn-bozza', 'btn-salva-solo'].map(id => $(id));
+  srcs.forEach(src => {
+    const c = document.createElement('button'); c.className = src.className; c.title = src.title || ''; c.dataset.proxy = src.id; top.appendChild(c);
+    const sync = () => { c.textContent = src.textContent; c.hidden = src.hidden; c.disabled = src.disabled; };
+    new MutationObserver(sync).observe(src, { attributes: true, childList: true, characterData: true, subtree: true }); sync();
+    c.addEventListener('click', () => src.click());
+  });
+})();
 
 // scrittura nei campi del modulo
 const SHEET = $('sheet-edit');
