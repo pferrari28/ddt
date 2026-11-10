@@ -68,10 +68,14 @@ label.l{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin:
 /* ===== tabelle ===== */
 .tw{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:auto;}
 table.t{border-collapse:collapse;width:100%;font-size:.9rem;}
-table.t th{background:var(--head);text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);white-space:nowrap;position:sticky;top:0;}
-table.t td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+table.t th{background:var(--head);text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);white-space:nowrap;position:sticky;top:0;}
+table.t td{padding:8px 14px;border-bottom:1px solid var(--line);vertical-align:top;}
 table.t tr.annullata td{color:#999;text-decoration:line-through;}
 table.t tr.annullata td.act, table.t tr.annullata td.st{text-decoration:none;}
+table.t th.n{text-align:right;}
+table.t th.w{width:100%;}
+table.t th.c, table.t td.c{width:1%;}
+table.t td{vertical-align:middle;}
 table.t td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 table.t td.act{white-space:nowrap;text-align:right;}
 table.t tfoot td{font-weight:700;background:var(--head);}
@@ -701,7 +705,7 @@ $('btn-add-dest').addEventListener('click', () => apriFormDest(null));
 function paintRubrica(){
   const q = $('rb-q').value.trim().toLowerCase();
   const lista = DEST.filter(r => !q || (r.nome + ' ' + (r.dati.ced || []).join(' ') + ' ' + (r.dati.dest || []).join(' ')).toLowerCase().includes(q));
-  $('rb-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>Nome nell'elenco</th><th>Cessionario</th><th>Luogo di destinazione</th><th>Causale</th><th>Copie</th><th></th></tr></thead><tbody>${
+  $('rb-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>Nome nell'elenco</th><th>Cessionario</th><th>Luogo di destinazione</th><th>Causale</th><th class="n">Copie</th><th></th></tr></thead><tbody>${
     lista.map(r => `<tr><td><b>${esc(r.nome)}</b></td><td>${esc((r.dati.ced || []).filter(Boolean).join(' · '))}</td><td>${esc((r.dati.dest || []).filter(Boolean).join(' · ') || 'Idem')}</td><td>${esc(r.dati.causale || '')}</td><td>${r.dati.copie || '—'}</td>
       <td class="act"><button class="btn small" data-a="usa" data-id="${r.id}">Usa nel DDT</button> <button class="btn small sec" data-a="mod" data-id="${r.id}">Modifica</button> <button class="btn small sec" data-a="del" data-id="${r.id}">Elimina</button></td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">Nessun destinatario. Premi «Nuovo destinatario» per aggiungerne uno.</div>';
@@ -809,7 +813,7 @@ function paintRegistro(){
   const lista = bolleFiltrate();
   const tot = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.totale_kg) || 0), 0);
   const colli = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.colli) || 0), 0);
-  $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>N.</th><th>Data</th><th>Destinatario</th><th>Causale</th><th>Descrizione</th><th>Lotti</th><th>Kg</th><th>Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
+  $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th class="n">N.</th><th class="n">Data</th><th>Destinatario</th><th>Causale</th><th>Descrizione</th><th>Lotti</th><th class="n">Kg</th><th class="n">Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
     lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td>${esc(descrDi(b))}</td><td>${esc(lottiDi(b))}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
       <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button></td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="6">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
@@ -941,7 +945,7 @@ function paintSfLedger(){
   const vis = sfVisibili(key), kg = vis.reduce((s, x) => s + (Number(x.kg) || 0), 0), last = all[all.length - 1];
   $('sf-kpi').innerHTML = `<div class="kpi"><small>Saldo bancali</small><b>${last ? last.saldo : 0}</b></div><div class="kpi"><small>Consegne (${SFL.anno === 'tutti' ? 'tutte' : SFL.anno})</small><b>${vis.length}</b></div><div class="kpi"><small>Kg consegnati (${SFL.anno === 'tutti' ? 'tutti' : SFL.anno})</small><b>${fmtIT(kg, 0, 2)}</b></div><div class="kpi"><small>Ultima consegna</small><b>${last ? fmtData(last.data) : '—'}</b></div>`;
   const adm = ME && ME.admin;
-  $('sf-wrap').innerHTML = vis.length ? `<table class="t"><thead><tr><th>Data</th><th>N. DDT</th><th>Kg consegnati</th><th>Bancali consegnati</th><th>Bancali resi</th><th>Saldo bancali</th><th>Note</th><th></th></tr></thead><tbody>${
+  $('sf-wrap').innerHTML = vis.length ? `<table class="t"><thead><tr><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg consegnati</th><th class="n">Bancali consegnati</th><th class="n">Bancali resi</th><th class="n">Saldo bancali</th><th class="w">Note</th><th></th></tr></thead><tbody>${
     vis.slice().reverse().map(x => `<tr><td class="n">${fmtData(x.data)}</td><td class="n">${x.numero ?? ''}</td><td class="n" title="${esc(x.kg_expr || '')}">${x.kg == null ? '' : fmtIT(x.kg, 0, 2)}</td><td class="n">${x.consegnati || 0}</td><td class="n">${x.resi || 0}</td><td class="n"><b>${x.saldo}</b></td><td>${esc(x.nota || '')}</td>
       <td class="act st">${adm && !x.bolla_id ? `<button class="btn small sec" data-a="sfmod" data-id="${x.id}">Modifica</button> <button class="btn small sec" data-a="sfdel" data-id="${x.id}">Elimina</button>` : ''}</td></tr>`).join('')
   }</tbody></table>` : '<div class="empty">Nessuna consegna registrata per questo anno.</div>';
@@ -1015,8 +1019,8 @@ function paintMerce(){
   const tot = valide.reduce((s, r) => s + (r.kg || 0), 0);
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
   if (!ESCL_OK) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
-  $('mu-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th>N. DDT</th><th>Data</th><th>Descrizione</th><th>Kg</th><th>Lotto</th><th></th></tr></thead><tbody>${
-    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td>${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n"><b>${r.numero}</b></td><td class="n">${fmtData(r.data)}</td><td>${esc(r.desc)}</td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 0, 2)}</td><td>${esc(r.lotto)}</td>
+  $('mu-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">N. DDT</th><th class="n">Data</th><th class="w">Descrizione</th><th class="n">Kg</th><th>Lotto</th><th></th></tr></thead><tbody>${
+    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n"><b>${r.numero}</b></td><td class="n">${fmtData(r.data)}</td><td>${esc(r.desc)}</td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 0, 2)}</td><td>${esc(r.lotto)}</td>
       <td class="act st">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="4">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td colspan="2"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
 }
