@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DDT · Documenti di trasporto</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F4; --panel:#FFFFFF; --ink:#17212B; --muted:#566574;
+  --line:#D8DEE4; --green:#1C2630; --green-dark:#2F3F50; --amber:#E3B23C;
+  --danger:#B3261E; --link:#2F5D8A; --head:#F6F8FA; --ok:#1E7A47; --ok-bg:#E6F4EC; --warn-bg:#FFF4D6;
+  --side:#1C2630; --radius:8px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;}
+body{background:var(--bg);color:var(--ink);font-family:"Barlow","Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif;}
+[hidden]{display:none !important;}
+button,input,select,textarea{font-family:inherit;}
+
+/* ===== struttura ===== */
+.app{display:flex;min-height:100vh;}
+.side{flex:0 0 220px;background:var(--side);color:#DCE3EA;padding:28px 16px;display:flex;flex-direction:column;gap:26px;position:sticky;top:0;height:100vh;align-self:flex-start;}
+.side h1{font-size:1.75rem;margin:0;line-height:1.1;color:#fff;font-weight:600;letter-spacing:-.01em;}
+.side .sub{margin:5px 0 0;font-size:.82rem;color:#A9B8C6;}
+.tabs{display:flex;flex-direction:column;gap:4px;}
+.tab-btn{display:block;text-align:left;padding:11px 14px;border-radius:6px;border:0;background:none;color:#DCE3EA;font-size:1rem;font-weight:500;cursor:pointer;}
+.tab-btn:hover{background:rgba(255,255,255,.08);}
+.tab-btn.active{background:var(--amber);color:#1C2630;font-weight:700;}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px;font-size:.8rem;color:#A9B8C6;}
+.side-foot .err{color:#FF9A9F;font-weight:600;} .side-foot .live{color:#7BE0A4;font-weight:600;}
+.side-foot button{background:none;border:1px solid #4A5A69;color:#DCE3EA;padding:7px 14px;font-size:.8rem;border-radius:6px;font-weight:500;cursor:pointer;}
+.side-foot button:hover{border-color:var(--amber);color:var(--amber);}
+.main{flex:1;min-width:0;padding:26px 32px 60px;}
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+.page-head h2{margin:0;font-size:1.6rem;font-weight:600;}
+.page-head p{margin:2px 0 0;color:var(--muted);font-size:.9rem;}
+
+/* ===== controlli ===== */
+.btn{background:var(--green);color:#fff;border:0;border-radius:6px;padding:9px 16px;font-size:.95rem;font-weight:600;cursor:pointer;}
+.btn:hover{background:var(--green-dark);}
+.btn:disabled{opacity:.5;cursor:default;}
+.btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line);}
+.btn.sec:hover{border-color:var(--amber);}
+.btn.danger{background:var(--danger);}
+.btn.small{padding:5px 10px;font-size:.82rem;}
+.btn.big{background:#FFE600;color:#1C2630;border:2px solid #1C2630;font-size:1.15rem;font-weight:700;padding:14px 26px;border-radius:12px;box-shadow:0 2px 0 #1C2630;}
+.btn.big:hover{background:#FFD800;}
+.btn.big:disabled{background:#ddd;box-shadow:none;}
+input.f,select.f,textarea.f{border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:.95rem;background:#fff;color:var(--ink);width:100%;}
+input.f:focus,select.f:focus,textarea.f:focus{outline:2px solid var(--amber);border-color:var(--amber);}
+label.l{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin:10px 0 4px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;}
+.bar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;}
+.bar .grow{flex:1;min-width:230px;}
+.bar label.l{margin-top:0;}
+.hint{color:var(--muted);font-size:.85rem;}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.78rem;font-weight:700;}
+.badge.ann{background:#FBE3E1;color:var(--danger);}
+.badge.ok{background:var(--ok-bg);color:var(--ok);}
+
+/* ===== tabelle ===== */
+.tw{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:auto;}
+table.t{border-collapse:collapse;width:100%;font-size:.9rem;}
+table.t th{background:var(--head);text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);white-space:nowrap;position:sticky;top:0;}
+table.t td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+table.t tr.annullata td{color:#999;text-decoration:line-through;}
+table.t tr.annullata td.act, table.t tr.annullata td.st{text-decoration:none;}
+table.t td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+table.t td.act{white-space:nowrap;text-align:right;}
+table.t tfoot td{font-weight:700;background:var(--head);}
+.empty{padding:30px;text-align:center;color:var(--muted);}
+
+/* ===== overlay / modal / toast ===== */
+.overlay{position:fixed;inset:0;background:rgba(17,24,31,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
+.overlay.show{display:flex;}
+.login-card,.modal{background:#fff;border-radius:12px;padding:26px 28px;width:min(440px,100%);max-height:92vh;overflow:auto;}
+.modal.wide{width:min(720px,100%);}
+.login-card h2,.modal h2{margin:0 0 6px;font-size:1.35rem;}
+.choice{display:flex;gap:8px;margin:12px 0 4px;}
+.choice button{flex:1;padding:11px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:600;cursor:pointer;font-size:.95rem;}
+.choice button.on{background:var(--green);color:#fff;border-color:var(--green);}
+.msg.err{color:var(--danger);font-size:.88rem;min-height:1.2em;margin-top:8px;font-weight:600;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.modal .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap;}
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:#1C2630;color:#fff;padding:12px 20px;border-radius:10px;opacity:0;transition:.25s;z-index:80;pointer-events:none;font-weight:500;max-width:90vw;}
+#toast.show{opacity:1;transform:translateX(-50%);}
+#toast.bad{background:var(--danger);}
+
+/* ===== modulo DDT (stesso disegno su schermo e in stampa) ===== */
+.sheetwrap{overflow:auto;padding-bottom:10px;}
+.sheet{border-collapse:collapse;table-layout:fixed;width:190mm;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;color:#000;background:#fff;}
+.sheet td{border:.7pt solid #000;padding:0 3px;overflow:hidden;white-space:nowrap;vertical-align:middle;line-height:1.1;text-align:left;}
+.sheet td.lab{background:#E7E6E6;text-align:center;font-size:8pt;}
+.sheet td.lab.m{font-size:9pt;}
+.sheet td.c{text-align:center;} .sheet td.r{text-align:right;padding-right:6px;}
+.sheet td.b{font-weight:700;}
+.sheet td.ced{text-align:center;font-weight:700;font-size:11pt;}
+.sheet td.nob{border:0;}
+.sheet td.title{text-align:center;font-size:12.5pt;}
+.sheet td.nn{font-size:17pt;text-align:center;text-decoration:underline;}
+.sheet td.numero{font-size:15pt;font-weight:700;}
+.sheet td.dt{font-weight:700;font-size:11pt;text-decoration:underline;text-align:center;}
+.sheet td.small{font-size:7.5pt;text-align:center;}
+.sheet td.x{text-align:center;font-weight:700;padding:0;position:relative;}
+.sheet td.wrap{white-space:normal;}
+.sheet input{width:100%;height:100%;border:0;background:transparent;font:inherit;color:inherit;text-align:inherit;padding:0;margin:0;outline:0;min-width:0;}
+.sheet input::placeholder{color:#bbb;font-weight:400;}
+.edit .sheet input{background:#FFFBE0;}
+.edit .sheet input:focus{background:#FFF1A6;box-shadow:inset 0 0 0 2px #E3B23C;}
+.edit .sheet input.auto{background:#F1F5F9;}
+.sheet .xbtn{position:absolute;inset:0;width:100%;height:100%;border:0;background:#FFFBE0;font:inherit;font-weight:700;cursor:pointer;padding:0;}
+.sheet .xbtn:hover{background:#FFE98A;}
+.sheet .ghost{color:#777;font-weight:400;}
+.toolbar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;}
+.toolbar .dest{min-width:300px;flex:1;max-width:480px;}
+.toolbar .cop{width:78px;}
+.nextnum{font-size:.95rem;color:var(--muted);margin-left:auto;text-align:right;}
+.nextnum b{color:var(--ink);font-size:1.3rem;}
+
+/* ===== stampa ===== */
+#print-root,#reg-print{display:none;}
+@page{size:A4 portrait;margin:8mm 10mm;}
+@media print{
+  body.printing{background:#fff;}
+  body.printing .app,body.printing .overlay,body.printing #toast{display:none !important;}
+  body.printing #print-root{display:block;}
+  body.printing #print-root .pagina{page-break-after:always;break-after:page;}
+  body.printing #print-root .pagina:last-child{page-break-after:auto;break-after:auto;}
+  body.printing-reg{background:#fff;}
+  body.printing-reg .app,body.printing-reg .overlay,body.printing-reg #toast{display:none !important;}
+  body.printing-reg #reg-print{display:block;}
+  body.printing-reg{--x:1;}
+}
+#reg-print{font-family:Calibri,Carlito,Arial,sans-serif;font-size:9pt;color:#000;}
+#reg-print h1{font-size:14pt;margin:0 0 2mm;}
+#reg-print table{border-collapse:collapse;width:100%;}
+#reg-print th,#reg-print td{border:.5pt solid #000;padding:1.2mm 1.6mm;text-align:left;vertical-align:top;}
+#reg-print th{background:#E7E6E6;}
+#reg-print td.n{text-align:right;white-space:nowrap;}
+@media (max-width:900px){.app{flex-direction:column;} .side{position:static;height:auto;flex:none;width:100%;} .main{padding:16px;}}
+</style>
+<script>window.supabase||document.write('<script src="vendor/supabase.js"><\/script>')</script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
+<script>window.supabase||document.write('<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"><\/script>')</script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script>window.XLSX||document.write('<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>')</script>
+</head>
+<body>
+
+<div class="app">
+  <aside class="side">
+    <div><h1>DDT</h1><p class="sub">Documenti di trasporto · Pegognaga</p></div>
+    <nav class="tabs" id="tabs">
+      <button class="tab-btn" data-p="compila">Nuovo DDT</button>
+      <button class="tab-btn" data-p="registro">Registro bolle</button>
+      <button class="tab-btn" data-p="rubrica">Destinatari</button>
+      <button class="tab-btn" data-p="impostazioni" id="tab-imp" hidden>Impostazioni</button>
+    </nav>
+    <div class="side-foot">
+      <div id="stato">Non connesso</div>
+      <div id="utente"></div>
+      <button id="btn-aggiorna">↻ Aggiorna dati</button>
+      <button id="btn-esci">Esci</button>
+    </div>
+  </aside>
+  <main class="main">
+
+    <!-- ============ NUOVO DDT ============ -->
+    <section id="p-compila" hidden>
+      <div class="page-head">
+        <div><h2>Nuovo DDT</h2><p>Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.</p></div>
+        <div class="nextnum">Prossimo numero<br><b id="next-num">—</b></div>
+      </div>
+      <div class="toolbar">
+        <div class="dest"><label class="l" style="margin-top:0">Destinatario</label>
+          <select class="f" id="sel-dest"></select></div>
+        <button class="btn sec" id="btn-nuovo-dest" title="Svuota il modulo e scrivi un destinatario nuovo">➕ Nuovo destinatario</button>
+        <button class="btn sec" id="btn-salva-rub" title="Salva in rubrica il destinatario com'è scritto nel modulo">💾 Salva in rubrica</button>
+        <div class="cop"><label class="l" style="margin-top:0">Copie</label><input class="f" id="in-copie" type="number" min="1" max="20" value="1"></div>
+        <button class="btn sec" id="btn-svuota">Svuota</button>
+      </div>
+      <div class="sheetwrap edit" id="sheet-edit"></div>
+      <div style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
+        <span class="hint" id="hint-stampa"></span>
+      </div>
+    </section>
+
+    <!-- ============ REGISTRO ============ -->
+    <section id="p-registro" hidden>
+      <div class="page-head">
+        <div><h2>Registro bolle</h2><p>Tutti i DDT emessi. Il registro si aggiorna da solo a ogni «Salva e stampa».</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="btn-xlsx">⬇ Esporta Excel</button>
+          <button class="btn sec" id="btn-regprint">🖨️ Stampa / PDF</button>
+        </div>
+      </div>
+      <div class="bar">
+        <div><label class="l">Anno</label><select class="f" id="rg-anno" style="width:100px"></select></div>
+        <div class="grow"><label class="l">Cerca (numero, destinatario, descrizione, lotto)</label><input class="f" id="rg-q" placeholder="es. Cerea, 126, LOTTO..."></div>
+        <div><label class="l">Dal</label><input class="f" type="date" id="rg-da"></div>
+        <div><label class="l">Al</label><input class="f" type="date" id="rg-a"></div>
+        <div><label class="l">Stato</label><select class="f" id="rg-st"><option value="">Tutte</option><option value="ok">Valide</option><option value="ann">Annullate</option></select></div>
+      </div>
+      <div class="tw" id="rg-wrap"></div>
+    </section>
+
+    <!-- ============ RUBRICA ============ -->
+    <section id="p-rubrica" hidden>
+      <div class="page-head">
+        <div><h2>Destinatari</h2><p>Salvati una volta, si scelgono dall'elenco nel modulo DDT.</p></div>
+        <button class="btn" id="btn-add-dest">➕ Nuovo destinatario</button>
+      </div>
+      <div class="bar"><div class="grow"><label class="l">Cerca</label><input class="f" id="rb-q" placeholder="Nome, città..."></div></div>
+      <div class="tw" id="rb-wrap"></div>
+    </section>
+
+    <!-- ============ IMPOSTAZIONI (solo Paolo) ============ -->
+    <section id="p-impostazioni" hidden>
+      <div class="page-head"><div><h2>Impostazioni</h2><p>Visibili solo a Paolo.</p></div></div>
+      <div class="card" style="max-width:640px;margin-bottom:16px">
+        <h3 style="margin:0 0 4px">Numerazione</h3>
+        <p class="hint" style="margin:0 0 8px">Scrivi l'<b>ultimo numero già usato</b> (es. se l'ultimo DDT è il 125, scrivi 125: il prossimo sarà il 126). Non si può tornare sotto un numero già emesso. La numerazione riparte da 1 ogni anno.</p>
+        <div class="row2"><div><label class="l">Anno</label><select class="f" id="im-anno"></select></div>
+          <div><label class="l">Ultimo numero usato</label><input class="f" id="im-ultimo" type="number" min="0"></div></div>
+        <div class="acts" style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" id="im-salva-num">Salva numerazione</button></div>
+      </div>
+      <div class="card" style="max-width:640px;margin-bottom:16px">
+        <h3 style="margin:0 0 4px">Copie da stampare</h3>
+        <p class="hint" style="margin:0 0 8px">Valore di partenza per ogni nuovo DDT (nel modulo si può cambiare volta per volta; un destinatario può avere le sue copie nella rubrica).</p>
+        <div style="max-width:160px"><label class="l">Copie</label><input class="f" id="im-copie" type="number" min="1" max="20"></div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" id="im-salva-copie">Salva copie</button></div>
+      </div>
+      <div class="card" style="max-width:640px">
+        <h3 style="margin:0 0 4px">Stampa diretta, senza finestra</h3>
+        <p style="margin:0 0 8px;line-height:1.5">Perché «Salva e stampa» mandi la bolla subito alla stampante predefinita del PC, Chrome va avviato con l'opzione <code>--kiosk-printing</code>:</p>
+        <ol style="margin:0;padding-left:20px;line-height:1.6">
+          <li>Tasto destro sull'icona di Chrome (desktop) → <b>Proprietà</b>.</li>
+          <li>Nel campo <b>Destinazione</b> aggiungi in fondo, dopo uno spazio: <code>--kiosk-printing</code></li>
+          <li>Chiudi tutte le finestre di Chrome e riaprilo da quell'icona.</li>
+        </ol>
+        <p class="hint" style="margin:10px 0 0">Con questa opzione ogni stampa (anche «Stampa / PDF» del registro) va direttamente in stampante. Per salvare il registro in PDF usa Chrome aperto normalmente, oppure l'Excel.</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- area di stampa -->
+<div id="print-root"></div>
+<div id="reg-print"></div>
+
+<!-- login -->
+<div class="overlay" id="login-overlay">
+  <form class="login-card" id="login-form">
+    <h2>DDT · Accesso</h2>
+    <div class="hint">Stesso utente e stessa password del registro lotti.</div>
+    <div class="choice" id="login-users"><button type="button" data-u="spedizioni">Spedizioni</button><button type="button" data-u="admin">Paolo</button></div>
+    <label class="l">Password</label>
+    <input class="f" type="password" id="login-pw" autocomplete="current-password" required>
+    <div class="msg err" id="login-msg"></div>
+    <div class="acts" style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn" type="submit">Entra</button></div>
+  </form>
+</div>
+<div class="overlay" id="modal-overlay"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+// ====== CONFIGURAZIONE SUPABASE (stesso progetto di registro lotti e magazzino) ======
+const SUPABASE_URL = 'https://jeyaymdllslsssqnovdj.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_T3tpl8qpQuMrXoWMj1L1yg_6O-1vJgJ';
+const UTENTI = { spedizioni: 'spedizioni@lotti.local', admin: 'admin@lotti.local' };
+const NOMI = { 'spedizioni@lotti.local': 'Spedizioni', 'admin@lotti.local': 'Paolo' };
+// ======================================================================================
+// Dati del cedente (stampati in alto nel modulo, uguali per tutti i DDT)
+const CEDENTE = ['Trentin Spa', 'Via Genova, 19 Z.I. - 37053 Cerea (VR)', 'C.F. e Part. IVA 03439000237', 'Stabilimento Pegognaga - Via Vittorio Foa, 1', '46020 Pegognaga (MN)'];
+const PARTENZA = 'Pegognaga (MN)';
+const N_RIGHE = 19;
+
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const $ = id => document.getElementById(id);
+let ME = null, DEST = [], CONT = {}, CFG = { copie: 1 }, BOLLE = [], ANNO = new Date().getFullYear();
+let DOC = null;                 // documento in compilazione
+let BUSY = false;
+
+// ---------- utilità ----------
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function oggiISO(){ const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function fmtData(s){ if (!s) return ''; const [y, m, d] = String(s).slice(0, 10).split('-'); return d + '/' + m + '/' + y; }
+function oraHHMM(){ const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function fmtIT(n, minDec, maxDec){
+  let x = Number(n); const neg = x < 0; x = Math.abs(x);
+  let [i, d = ''] = x.toFixed(maxDec).split('.');
+  while (d.length > minDec && d.endsWith('0')) d = d.slice(0, -1);
+  i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (neg ? '-' : '') + i + (d ? ',' + d : '');
+}
+function numKg(s){                                   // "25.445,5" -> 25445.5 ; vuoto -> null
+  s = String(s ?? '').trim().replace(/\s/g, '');
+  if (!s) return null;
+  const n = Number(s.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : NaN;
+}
+function fmtMigliaia(el){                            // mentre si scrive: punto delle migliaia, virgola decimale, max 2 decimali
+  const sig = el.value.slice(0, el.selectionStart ?? el.value.length).replace(/[^0-9,]/g, '').length;
+  const raw = el.value.replace(/[^0-9,]/g, '');
+  const i = raw.indexOf(',');
+  let int = i < 0 ? raw : raw.slice(0, i);
+  const dec = i < 0 ? null : raw.slice(i + 1).replace(/,/g, '').slice(0, 2);
+  int = int.replace(/^0+(?=\d)/, '');
+  if (int === '' && dec !== null) int = '0';
+  const out = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (dec !== null ? ',' + dec : '');
+  el.value = out;
+  let c = 0, pos = 0;
+  while (pos < out.length && c < sig) { if (/[0-9,]/.test(out[pos])) c++; pos++; }
+  try { el.setSelectionRange(pos, pos); } catch (e) {}
+}
+function kgTxt(n){ return n === null || n === undefined || Number.isNaN(n) ? '' : fmtIT(n, 0, 2); }
+function toast(m, bad){ const t = $('toast'); t.textContent = m; t.classList.toggle('bad', !!bad); t.classList.add('show'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), bad ? 6000 : 3200); }
+function openModal(html, wide){ $('modal').className = 'modal' + (wide ? ' wide' : ''); $('modal').innerHTML = html; $('modal-overlay').classList.add('show'); }
+function closeModal(){ $('modal-overlay').classList.remove('show'); $('modal').innerHTML = ''; }
+function setStatus(t, cls){ const e = $('stato'); e.textContent = t; e.className = cls || ''; }
+const getp = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+function setp(o, p, v){ const ks = p.split('.'); const last = ks.pop(); const t = ks.reduce((a, k) => a[k], o); t[last] = v; }
+const clone = o => JSON.parse(JSON.stringify(o));
+
+// ---------- il documento ----------
+function nuovoDoc(dati){
+  dati = dati || {};
+  const d = {
+    dest_id: dati.dest_id || '', data: oggiISO(), a_mezzo: dati.a_mezzo || 'vettore',
+    ced: [...(dati.ced || []), '', '', ''].slice(0, 3), dest: [...(dati.dest || []), '', '', ''].slice(0, 3),
+    causale: dati.causale || '', ord_num: '', ord_data: '', cod_scarico: '', in_conto: false, a_saldo: false,
+    righe: Array.from({ length: N_RIGHE }, () => ({ kg: '', desc: '', lotto: '' })),
+    aspetto: dati.aspetto || 'A VISTA', colli: '', peso: '', peso_manuale: false, porto: dati.porto || '', totale: '',
+    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: '', annotazioni: dati.annotazioni || '', bancali: '',
+    copie: dati.copie || CFG.copie || 1,
+  };
+  return d;
+}
+function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = numKg(r.kg); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
+function pesoNum(d){ if (d.peso_manuale) { const n = numKg(d.peso); return n === null || Number.isNaN(n) ? null : n; } return sommaKg(d); }
+function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni: d.annotazioni, copie: d.copie_rub || null }; }
+
+// ---------- il modulo (identico a schermo e in stampa) ----------
+// mode: 'edit' (campi compilabili) | 'print' (solo testo)
+function sheetHTML(d, mode, ctx){
+  const E = mode === 'edit'; ctx = ctx || {};
+  const T = (path, cls, ph) => E
+    ? `<input data-k="${path}" value="${esc(getp(d, path))}" ${ph ? `placeholder="${esc(ph)}"` : ''} autocomplete="off" spellcheck="false" ${cls ? `class="${cls}"` : ''}>`
+    : esc(getp(d, path));
+  const KG = path => E
+    ? `<input data-k="${path}" data-kg="1" inputmode="decimal" value="${esc(getp(d, path))}" autocomplete="off">`
+    : esc(getp(d, path));
+  const X = (on, key) => E ? `<button type="button" class="xbtn" data-chk="${key}" tabindex="-1">${on ? 'X' : ''}</button>` : (on ? 'X' : '');
+  const am = d.a_mezzo;
+  const pesoShown = d.peso_manuale ? d.peso : kgTxt(sommaKg(d));
+  const dataRit = ctx.ritiro_data || (E ? oggiISO() : ''), oraRit = ctx.ritiro_ora || (E ? oraHHMM() : '');
+  const destVuota = d.dest.every(x => !String(x).trim());
+  const destLine = i => E ? T('dest.' + i, 'c b', i === 1 ? 'Idem' : '') : (destVuota ? (i === 1 ? 'Idem' : '') : esc(d.dest[i]));
+  const numero = ctx.numero != null ? ctx.numero : (E ? '<span class="ghost" style="font-size:9pt;font-weight:400;text-decoration:none">da assegnare</span>' : '');
+  const H = (pt, inner) => `<tr style="height:${pt}pt">${inner}</tr>`;
+  const w = [9.71, 9.71, 9.71, 9.71, 9.71, 2.71, 9.71, 2.71, 9.71, 2.71, 9.71], tot = w.reduce((a, b) => a + b, 0);
+  let h = `<table class="sheet"><colgroup>${w.map(x => `<col style="width:${(x / tot * 100).toFixed(3)}%">`).join('')}</colgroup>`;
+  h += H(8.1, `<td colspan="4" class="lab" style="font-size:6.5pt">CEDENTE: Ditta, Dipendenza, Domicilio o Residenza, Partita IVA</td><td colspan="7" rowspan="2" class="title">DOCUMENTO DI TRASPORTO (D.d.t.)</td>`);
+  h += H(18.95, `<td colspan="4" class="ced">${esc(CEDENTE[0])}</td>`);
+  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[1])}</td><td colspan="7" class="small">D.PR. 472 del 14.08.1996 - D.PR. 696 del 21.12.1996</td>`);
+  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[2])}</td><td rowspan="2" class="lab nn" style="background:#fff">N.</td><td colspan="3" rowspan="2" class="numero"><span style="font-weight:700;text-decoration:underline;font-size:11pt">c/</span> ${numero}</td><td rowspan="2" class="lab" style="font-size:10pt;font-weight:700;text-decoration:underline">Data</td><td colspan="2" rowspan="2" class="dt">${E ? `<input type="date" data-k="data" value="${esc(d.data)}" style="font-weight:700;text-align:center">` : fmtData(d.data)}</td>`);
+  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[3])}</td>`);
+  h += H(18.95, `<td colspan="4" class="ced" style="font-size:10pt">${esc(CEDENTE[4])}</td><td class="lab m" style="background:#fff;font-size:10pt;text-align:left">a mezzo:</td><td class="x">${X(am === 'cedente', 'a_mezzo:cedente')}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${X(am === 'cessionario', 'a_mezzo:cessionario')}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${X(am === 'vettore', 'a_mezzo:vettore')}</td><td class="lab" style="background:#fff">vettore</td>`);
+  h += H(18.95, `<td colspan="2" class="lab" style="background:#fff;font-size:8pt;text-align:left">Partenza dal magazzino di</td><td colspan="2" class="c b">${esc(PARTENZA)}</td><td colspan="7"></td>`);
+  h += H(15.95, `<td colspan="4" class="lab">CESSIONARIO: Ditta, Dipendenza, Domicilio o Residenza</td><td colspan="7" class="lab" style="font-size:7pt">LUOGO DI DESTINAZIONE (se diverso dall'indirizzo del cessionario) E VARIAZIONI</td>`);
+  for (let i = 0; i < 3; i++) h += H(18.95, `<td colspan="4" class="ced">${T('ced.' + i, 'c b')}</td><td colspan="7" class="ced">${destLine(i)}</td>`);
+  h += H(15.95, `<td colspan="4" class="lab">CAUSALE DEL TRASPORTO</td><td class="lab">VS. ORDINE N.</td><td></td><td class="lab">DATA</td><td colspan="2" class="lab">Cod. scarico</td><td class="x">${X(d.in_conto, 'in_conto')}</td><td class="lab">IN CONTO</td>`);
+  h += H(15.95, `<td colspan="4" class="c b">${T('causale', 'c b')}</td><td class="c">${T('ord_num', 'c')}</td><td></td><td class="c">${T('ord_data', 'c')}</td><td colspan="2" class="c">${T('cod_scarico', 'c')}</td><td class="x">${X(d.a_saldo, 'a_saldo')}</td><td class="lab">A SALDO</td>`);
+  h += H(15.95, `<td colspan="2" class="lab m" style="font-size:9.5pt">QUANTITÀ (IN KG)</td><td colspan="7" class="lab m" style="font-size:9.5pt">DESCRIZIONE DEI BENI</td><td colspan="2" class="lab m" style="font-size:9.5pt">LOTTO</td>`);
+  for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7">${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
+  h += H(14.1, `<td colspan="3" class="lab">ASPETTO ESTERIORE DEI BENI</td><td class="lab">N. COLLI</td><td colspan="2" class="lab">PESO KG.</td><td colspan="2" class="lab">PORTO</td><td rowspan="2" class="lab" style="font-size:10pt">TOTALE €</td><td colspan="2" rowspan="2" class="c">${T('totale', 'c')}</td>`);
+  h += H(18.95, `<td colspan="3" class="c b" style="font-size:11pt">${T('aspetto', 'c b')}</td><td class="c b">${T('colli', 'c b')}</td><td colspan="2" class="c b">${E ? `<input data-k="peso" data-kg="1" data-peso="1" class="${d.peso_manuale ? '' : 'auto'}" value="${esc(pesoShown)}" inputmode="decimal" style="text-align:center;font-weight:700">` : esc(pesoShown)}</td><td colspan="2" class="c">${T('porto', 'c')}</td>`);
+  h += H(12, `<td colspan="3" class="lab" style="font-size:8pt">VETTORE: ditta, domicilio o residenza</td><td colspan="2" class="lab" style="font-size:7pt">DATA E ORA DEL RITIRO</td><td colspan="6" rowspan="4"></td>`);
+  h += H(12, `<td colspan="3">${T('vettore.0', '')}</td><td rowspan="2" class="lab" style="font-size:9pt">DATA</td><td rowspan="2" class="lab" style="font-size:9pt">ORA</td>`);
+  h += H(14.1, `<td colspan="3">${T('vettore.1', '')}</td>`);
+  h += H(14.1, `<td colspan="3">${T('vettore.2', '')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
+  h += H(14.1, `<td colspan="5" class="lab" style="font-size:9.5pt">Consegna o inizio trasporto a mezzo</td><td class="x" style="font-size:9pt">${am === 'cedente' ? 'X' : ''}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${am === 'cessionario' ? 'X' : ''}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${am === 'vettore' ? 'X' : ''}</td><td class="lab" style="background:#fff">vettore</td>`);
+  h += H(14.1, `<td colspan="5" class="lab">ANNOTAZIONI - VARIAZIONI</td><td colspan="6" class="nob"></td>`);
+  h += H(14.1, `<td colspan="2" class="lab" style="font-size:9.5pt;text-align:left">TARGA AUTOMEZZO</td><td colspan="4">${T('targa', 'c b')}</td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CONDUCENTE</td>`);
+  h += H(14.1, `<td colspan="6">${T('annotazioni', '')}</td><td colspan="5" rowspan="1"></td>`);
+  h += H(14.1, `<td colspan="2" rowspan="2" class="lab" style="font-size:8pt">${E || String(d.bancali).trim() ? 'BANCALI CARICATI' : ''}</td><td colspan="2" rowspan="2" class="c b">${T('bancali', 'c b')}</td><td colspan="2" rowspan="2"></td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CESSIONARIO</td>`);
+  h += H(14.1, `<td colspan="5"></td>`);
+  return h + '</table>';
+}
+
+// ---------- compilazione ----------
+function paintSheet(){
+  $('sheet-edit').innerHTML = sheetHTML(DOC, 'edit');
+  $('in-copie').value = DOC.copie;
+}
+function ricalcolaPeso(){
+  const el = document.querySelector('#sheet-edit [data-peso]'); if (!el) return;
+  if (!DOC.peso_manuale) { el.value = kgTxt(sommaKg(DOC)); el.classList.add('auto'); } else el.classList.remove('auto');
+}
+function paintDestSelect(){
+  const cur = DOC ? DOC.dest_id : '';
+  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + DEST.map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
+  $('sel-dest').value = cur && DEST.some(x => x.id === cur) ? cur : '';
+}
+function applicaDestinatario(id){
+  const r = DEST.find(x => x.id === id);
+  DOC = r ? nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }) : nuovoDoc();
+  if (r) DOC.copie_rub = r.dati.copie || null;
+  paintSheet(); paintDestSelect();
+}
+function paintNextNum(){
+  const y = Number((DOC && DOC.data || oggiISO()).slice(0, 4));
+  $('next-num').textContent = (CONT[y] || 0) + 1 + ' / ' + y;
+}
+$('sel-dest').addEventListener('change', () => applicaDestinatario($('sel-dest').value));
+$('btn-svuota').addEventListener('click', () => { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); });
+$('btn-nuovo-dest').addEventListener('click', () => { DOC = nuovoDoc({ a_mezzo: 'vettore' }); paintSheet(); paintDestSelect(); const f = document.querySelector('#sheet-edit [data-k="ced.0"]'); if (f) f.focus(); toast('Scrivi il destinatario nel modulo, poi «Salva in rubrica» (o salverò alla stampa).'); });
+$('in-copie').addEventListener('input', () => { DOC.copie = Math.max(1, Math.min(20, parseInt($('in-copie').value, 10) || 1)); });
+
+// scrittura nei campi del modulo
+const SHEET = $('sheet-edit');
+SHEET.addEventListener('input', ev => {
+  const el = ev.target; if (!el.dataset || !el.dataset.k) return;
+  if (el.dataset.kg) fmtMigliaia(el);
+  const k = el.dataset.k;
+  if (el.dataset.peso) { DOC.peso = el.value; DOC.peso_manuale = el.value.trim() !== ''; ricalcolaPeso(); if (!DOC.peso_manuale) DOC.peso = ''; return; }
+  setp(DOC, k, el.value);
+  if (/^righe\.\d+\.kg$/.test(k)) ricalcolaPeso();
+  if (k === 'data') paintNextNum();
+  if (/^(ced|dest)\./.test(k) && el.value && /^ced\.0$/.test(k)) { /* nome scritto a mano */ }
+});
+SHEET.addEventListener('blur', ev => {
+  const el = ev.target; if (el.dataset && el.dataset.kg) { const n = numKg(el.value); if (n !== null && !Number.isNaN(n)) { el.value = kgTxt(n); if (el.dataset.peso) { DOC.peso = el.value; } else setp(DOC, el.dataset.k, el.value); ricalcolaPeso(); } }
+}, true);
+SHEET.addEventListener('keydown', ev => {                       // Invio = campo successivo
+  if (ev.key !== 'Enter' || !ev.target.dataset || !ev.target.dataset.k) return;
+  ev.preventDefault();
+  const all = [...SHEET.querySelectorAll('input[data-k]')]; const i = all.indexOf(ev.target);
+  const nx = all[i + 1]; if (nx) { nx.focus(); try { nx.select(); } catch (e) {} }
+});
+SHEET.addEventListener('click', ev => {
+  const b = ev.target.closest('[data-chk]'); if (!b) return;
+  const k = b.dataset.chk;
+  if (k.startsWith('a_mezzo:')) DOC.a_mezzo = k.split(':')[1]; else DOC[k] = !DOC[k];
+  const sc = SHEET.scrollLeft; paintSheet(); SHEET.scrollLeft = sc;
+});
+
+// ---------- rubrica ----------
+function formDestHTML(r){
+  const d = (r && r.dati) || {};
+  const L = (id, i, v) => `<input class="f" id="${id}${i}" value="${esc(v || '')}" style="margin-bottom:6px">`;
+  return `<h2>${r ? 'Modifica destinatario' : 'Nuovo destinatario'}</h2>
+  <div class="row2">
+    <div><label class="l">Cessionario (ditta, indirizzo, CAP città)</label>${L('rd-ced', 0, (d.ced || [])[0])}${L('rd-ced', 1, (d.ced || [])[1])}${L('rd-ced', 2, (d.ced || [])[2])}</div>
+    <div><label class="l">Luogo di destinazione (vuoto = «Idem»)</label>${L('rd-dest', 0, (d.dest || [])[0])}${L('rd-dest', 1, (d.dest || [])[1])}${L('rd-dest', 2, (d.dest || [])[2])}</div>
+  </div>
+  <label class="l">Causale del trasporto</label><input class="f" id="rd-causale" value="${esc(d.causale || '')}" placeholder="es. Trasferimento tra magazzini - Reso c/lavoro">
+  <div class="row2">
+    <div><label class="l">A mezzo</label><select class="f" id="rd-amezzo"><option value="vettore">vettore</option><option value="cedente">cedente</option><option value="cessionario">cessionario</option></select></div>
+    <div><label class="l">Copie da stampare (vuoto = predefinito)</label><input class="f" id="rd-copie" type="number" min="1" max="20" value="${esc(d.copie || '')}"></div>
+  </div>
+  <div class="row2">
+    <div><label class="l">Aspetto esteriore dei beni</label><input class="f" id="rd-aspetto" value="${esc(d.aspetto || 'A VISTA')}"></div>
+    <div><label class="l">Porto</label><input class="f" id="rd-porto" value="${esc(d.porto || '')}"></div>
+  </div>
+  <label class="l">Vettore abituale (facoltativo)</label>
+  ${L('rd-vet', 0, (d.vettore || [])[0])}${L('rd-vet', 1, (d.vettore || [])[1])}
+  <label class="l">Annotazioni abituali (facoltativo)</label><input class="f" id="rd-annot" value="${esc(d.annotazioni || '')}">
+  <div class="msg err" id="rd-err"></div>
+  <div class="acts"><button class="btn sec" id="rd-annulla">Annulla</button><button class="btn" id="rd-salva">Salva destinatario</button></div>`;
+}
+function leggiFormDest(){
+  const g = id => $(id).value.trim();
+  return { ced: [g('rd-ced0'), g('rd-ced1'), g('rd-ced2')], dest: [g('rd-dest0'), g('rd-dest1'), g('rd-dest2')], causale: g('rd-causale'), a_mezzo: $('rd-amezzo').value,
+    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), copie: parseInt($('rd-copie').value, 10) || null };
+}
+function apriFormDest(id, preset, dopo){
+  const r = id ? DEST.find(x => x.id === id) : (preset ? { dati: preset } : null);
+  openModal(formDestHTML(r), true);
+  $('rd-amezzo').value = (r && r.dati.a_mezzo) || 'vettore';
+  $('rd-annulla').onclick = closeModal;
+  $('rd-salva').onclick = async () => {
+    const dati = leggiFormDest();
+    if (!dati.ced[0]) { $('rd-err').textContent = 'Scrivi almeno il nome della ditta (prima riga del cessionario).'; return; }
+    try { const saved = await salvaDest(id, dati); closeModal(); toast('Destinatario salvato'); if (dopo) dopo(saved); }
+    catch (e) { $('rd-err').textContent = 'Non salvato: ' + (e.message || e); }
+  };
+}
+async function salvaDest(id, dati){
+  const nome = dati.ced[0];
+  let res;
+  if (id) res = await sb.from('ddt_destinatari').update({ nome, dati, aggiornato_il: new Date().toISOString() }).eq('id', id).select().single();
+  else res = await sb.from('ddt_destinatari').insert({ nome, dati }).select().single();
+  if (res.error) throw res.error;
+  const i = DEST.findIndex(x => x.id === res.data.id);
+  if (i >= 0) DEST[i] = res.data; else DEST.push(res.data);
+  DEST.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  paintDestSelect(); paintRubrica();
+  return res.data;
+}
+$('btn-salva-rub').addEventListener('click', async () => {
+  if (!String(DOC.ced[0]).trim()) { toast('Scrivi prima il nome del destinatario nel modulo.', true); return; }
+  try {
+    const saved = await salvaDest(DOC.dest_id || null, datiRubrica(DOC));
+    DOC.dest_id = saved.id; paintDestSelect(); toast('Destinatario salvato in rubrica');
+  } catch (e) { toast('Non salvato: ' + (e.message || e), true); }
+});
+$('btn-add-dest').addEventListener('click', () => apriFormDest(null));
+function paintRubrica(){
+  const q = $('rb-q').value.trim().toLowerCase();
+  const lista = DEST.filter(r => !q || (r.nome + ' ' + (r.dati.ced || []).join(' ') + ' ' + (r.dati.dest || []).join(' ')).toLowerCase().includes(q));
+  $('rb-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>Destinatario</th><th>Indirizzo</th><th>Luogo di destinazione</th><th>Causale</th><th>Copie</th><th></th></tr></thead><tbody>${
+    lista.map(r => `<tr><td><b>${esc(r.nome)}</b></td><td>${esc((r.dati.ced || []).slice(1).filter(Boolean).join(' · '))}</td><td>${esc((r.dati.dest || []).filter(Boolean).join(' · ') || 'Idem')}</td><td>${esc(r.dati.causale || '')}</td><td>${r.dati.copie || '—'}</td>
+      <td class="act"><button class="btn small" data-a="usa" data-id="${r.id}">Usa nel DDT</button> <button class="btn small sec" data-a="mod" data-id="${r.id}">Modifica</button> <button class="btn small sec" data-a="del" data-id="${r.id}">Elimina</button></td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty">Nessun destinatario. Premi «Nuovo destinatario» per aggiungerne uno.</div>';
+}
+$('rb-q').addEventListener('input', paintRubrica);
+$('rb-wrap').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-a]'); if (!b) return; const id = b.dataset.id;
+  if (b.dataset.a === 'usa') { applicaDestinatario(id); go('compila'); }
+  else if (b.dataset.a === 'mod') apriFormDest(id);
+  else if (b.dataset.a === 'del') {
+    const r = DEST.find(x => x.id === id);
+    openModal(`<h2>Eliminare «${esc(r.nome)}»?</h2><p>Le bolle già emesse restano nel registro invariate.</p><div class="acts"><button class="btn sec" id="x-no">Annulla</button><button class="btn danger" id="x-si">Elimina</button></div>`);
+    $('x-no').onclick = closeModal;
+    $('x-si').onclick = async () => {
+      const { error } = await sb.from('ddt_destinatari').delete().eq('id', id);
+      if (error) { toast('Non eliminato: ' + error.message, true); return; }
+      DEST = DEST.filter(x => x.id !== id); if (DOC && DOC.dest_id === id) DOC.dest_id = '';
+      closeModal(); paintDestSelect(); paintRubrica(); toast('Destinatario eliminato');
+    };
+  }
+});
+
+// ---------- SALVA E STAMPA ----------
+function righeUtili(d){ return d.righe.filter(r => String(r.kg).trim() || String(r.desc).trim() || String(r.lotto).trim()); }
+async function salvaEStampa(){
+  if (BUSY) return;
+  const d = DOC;
+  if (!String(d.ced[0]).trim()) { toast('Manca il destinatario: scegli dall\'elenco o scrivilo nel modulo.', true); return; }
+  if (!righeUtili(d).length) { toast('Il DDT non ha nessuna riga: scrivi almeno una quantità o una descrizione.', true); return; }
+  for (const r of d.righe) { const n = numKg(r.kg); if (Number.isNaN(n)) { toast('C\'è una quantità non valida: «' + r.kg + '»', true); return; } }
+  // destinatario nuovo scritto a mano e non ancora in rubrica
+  if (!d.dest_id && !DEST.some(x => x.nome.trim().toLowerCase() === String(d.ced[0]).trim().toLowerCase())) {
+    const scelta = await new Promise(res => {
+      openModal(`<h2>Destinatario nuovo</h2><p style="line-height:1.5">«<b>${esc(d.ced[0])}</b>» non è ancora in rubrica. Lo salvo, così la prossima volta lo trovi nell'elenco?</p>
+        <div class="acts"><button class="btn sec" id="q-ann">Annulla</button><button class="btn sec" id="q-no">Stampa senza salvare</button><button class="btn" id="q-si">Salva in rubrica e stampa</button></div>`);
+      $('q-ann').onclick = () => { closeModal(); res('ann'); }; $('q-no').onclick = () => { closeModal(); res('no'); }; $('q-si').onclick = () => { closeModal(); res('si'); };
+    });
+    if (scelta === 'ann') return;
+    if (scelta === 'si') { try { const s = await salvaDest(null, datiRubrica(d)); d.dest_id = s.id; paintDestSelect(); } catch (e) { toast('Rubrica non salvata: ' + (e.message || e), true); return; } }
+  }
+  BUSY = true; $('btn-stampa').disabled = true; $('btn-stampa').textContent = '⏳ Salvataggio…';
+  try {
+    const ritiro_data = oggiISO(), ritiro_ora = oraHHMM();
+    const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
+    delete payload.copie_rub;
+    const { data, error } = await sb.rpc('ddt_emetti', { p: payload });
+    if (error) throw error;
+    BOLLE.unshift(data); if ((CONT[data.anno] || 0) < data.numero) CONT[data.anno] = data.numero;
+    stampaBolla(data, data.copie);
+    toast(`DDT n. ${data.numero} salvato e inviato alla stampante (${data.copie} ${data.copie === 1 ? 'copia' : 'copie'})`);
+    // modulo pulito per la bolla successiva (stesso destinatario)
+    applicaDestinatario(d.dest_id || ''); paintNextNum(); paintRegistro();
+  } catch (e) {
+    toast('DDT NON salvato (nessun numero consumato): ' + (e.message || e), true);
+  } finally { BUSY = false; $('btn-stampa').disabled = false; $('btn-stampa').textContent = '🖨️ SALVA E STAMPA'; }
+}
+$('btn-stampa').addEventListener('click', salvaEStampa);
+
+function stampaBolla(row, copie){
+  const d = row.dati, ctx = { numero: row.numero, ritiro_data: d.ritiro_data, ritiro_ora: d.ritiro_ora };
+  const pag = `<div class="pagina">${sheetHTML({ ...d, data: row.data }, 'print', ctx)}</div>`;
+  $('print-root').innerHTML = Array.from({ length: Math.max(1, copie || 1) }, () => pag).join('');
+  document.body.classList.add('printing');
+  const fine = () => { document.body.classList.remove('printing'); $('print-root').innerHTML = ''; window.removeEventListener('afterprint', fine); };
+  window.addEventListener('afterprint', fine);
+  setTimeout(() => window.print(), 80);
+}
+
+// ---------- registro ----------
+const REG = { q: '', da: '', a: '', st: '' };
+function lottiDi(b){ return [...new Set((b.dati.righe || []).map(r => String(r.lotto || '').trim()).filter(Boolean))].join(', '); }
+function descrDi(b){ return [...new Set((b.dati.righe || []).map(r => String(r.desc || '').trim()).filter(Boolean))].join(' · '); }
+function bolleFiltrate(){
+  const q = REG.q.trim().toLowerCase();
+  return BOLLE.filter(b => {
+    if (REG.da && b.data < REG.da) return false;
+    if (REG.a && b.data > REG.a) return false;
+    if (REG.st === 'ok' && b.annullata) return false;
+    if (REG.st === 'ann' && !b.annullata) return false;
+    if (q && !(`${b.numero} ${b.dest_nome} ${b.causale} ${descrDi(b)} ${lottiDi(b)}`).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+function paintRegistro(){
+  const lista = bolleFiltrate();
+  const tot = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.totale_kg) || 0), 0);
+  const colli = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.colli) || 0), 0);
+  $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>N.</th><th>Data</th><th>Destinatario</th><th>Causale</th><th>Descrizione</th><th>Lotti</th><th>Kg</th><th>Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
+    lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td>${esc(descrDi(b))}</td><td>${esc(lottiDi(b))}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
+      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button></td></tr>`).join('')
+  }</tbody><tfoot><tr><td colspan="6">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
+    : '<div class="empty">Nessun DDT per questi filtri.</div>';
+}
+function paintAnni(){
+  const anni = new Set([new Date().getFullYear(), ANNO, ...Object.keys(CONT).map(Number)]);
+  const arr = [...anni].sort((a, b) => b - a);
+  $('rg-anno').innerHTML = arr.map(a => `<option>${a}</option>`).join(''); $('rg-anno').value = ANNO;
+  $('im-anno').innerHTML = arr.map(a => `<option>${a}</option>`).join(''); $('im-anno').value = new Date().getFullYear();
+  $('im-ultimo').value = CONT[Number($('im-anno').value)] || 0;
+}
+$('rg-q').addEventListener('input', () => { REG.q = $('rg-q').value; paintRegistro(); });
+$('rg-da').addEventListener('input', () => { REG.da = $('rg-da').value; paintRegistro(); });
+$('rg-a').addEventListener('input', () => { REG.a = $('rg-a').value; paintRegistro(); });
+$('rg-st').addEventListener('change', () => { REG.st = $('rg-st').value; paintRegistro(); });
+$('rg-anno').addEventListener('change', async () => { ANNO = Number($('rg-anno').value); await caricaBolle(); paintRegistro(); });
+$('rg-wrap').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-a]'); if (!b) return;
+  const row = BOLLE.find(x => x.id === b.dataset.id); if (!row) return;
+  if (b.dataset.a === 'rist') {
+    openModal(`<h2>Ristampa DDT n. ${row.numero}</h2><p class="hint">Stessa bolla, stesso numero: non si crea nessun nuovo DDT.</p><label class="l">Copie</label><input class="f" id="rs-copie" type="number" min="1" max="20" value="${row.copie || 1}"><div class="acts"><button class="btn sec" id="rs-no">Annulla</button><button class="btn" id="rs-si">🖨️ Stampa</button></div>`);
+    $('rs-no').onclick = closeModal; $('rs-si').onclick = () => { const n = Math.max(1, parseInt($('rs-copie').value, 10) || 1); closeModal(); stampaBolla(row, n); };
+  } else if (b.dataset.a === 'dup') {
+    DOC = nuovoDoc(); const { ritiro_data, ritiro_ora, peso_num, numero, ...resto } = row.dati;
+    Object.assign(DOC, clone(resto), { data: oggiISO() });
+    const righe = Array.from({ length: N_RIGHE }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }); DOC.righe = clone(righe);
+    go('compila'); paintSheet(); paintDestSelect(); paintNextNum(); toast('Bolla copiata in un nuovo DDT: controlla e premi «Salva e stampa».');
+  } else if (b.dataset.a === 'ann') {
+    const annulla = !row.annullata;
+    openModal(`<h2>${annulla ? 'Annullare' : 'Ripristinare'} il DDT n. ${row.numero}?</h2><p style="line-height:1.5">${annulla ? 'Il numero resta nel registro come ANNULLATO (la numerazione non si riutilizza) e non viene conteggiato nei totali.' : 'Il DDT torna valido.'}</p><div class="acts"><button class="btn sec" id="an-no">No</button><button class="btn ${annulla ? 'danger' : ''}" id="an-si">${annulla ? 'Annulla il DDT' : 'Ripristina'}</button></div>`);
+    $('an-no').onclick = closeModal;
+    $('an-si').onclick = async () => {
+      const { error } = await sb.rpc('ddt_annulla', { p_id: row.id, p_annulla: annulla });
+      closeModal(); if (error) { toast('Non riuscito: ' + error.message, true); return; }
+      row.annullata = annulla; paintRegistro(); toast(annulla ? 'DDT annullato' : 'DDT ripristinato');
+    };
+  }
+});
+$('btn-xlsx').addEventListener('click', () => {
+  if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
+  const lista = bolleFiltrate().slice().sort((a, b) => a.numero - b.numero);
+  const testata = lista.map(b => ({ 'N.': b.numero, 'Anno': b.anno, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Causale': b.causale || '', 'Descrizione': descrDi(b), 'Lotti': lottiDi(b), 'Kg': b.totale_kg == null ? '' : Number(b.totale_kg), 'Colli': b.colli ?? '', 'Copie': b.copie, 'Stato': b.annullata ? 'ANNULLATO' : 'Valido', 'Emesso da': NOMI[b.creato_da] || b.creato_da || '' }));
+  const righe = []; lista.forEach(b => (b.dati.righe || []).forEach(r => righe.push({ 'N.': b.numero, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Kg': numKg(r.kg) ?? '', 'Descrizione': r.desc || '', 'Lotto': r.lotto || '', 'Stato': b.annullata ? 'ANNULLATO' : 'Valido' })));
+  const wb = XLSX.utils.book_new();
+  const w1 = XLSX.utils.json_to_sheet(testata); w1['!cols'] = [6, 6, 11, 30, 30, 40, 22, 12, 7, 7, 11, 12].map(x => ({ wch: x }));
+  const w2 = XLSX.utils.json_to_sheet(righe); w2['!cols'] = [6, 11, 30, 12, 44, 20, 11].map(x => ({ wch: x }));
+  XLSX.utils.book_append_sheet(wb, w1, 'Registro DDT'); XLSX.utils.book_append_sheet(wb, w2, 'Righe');
+  XLSX.writeFile(wb, `Registro_DDT_${ANNO}.xlsx`);
+});
+$('btn-regprint').addEventListener('click', () => {
+  const lista = bolleFiltrate().slice().sort((a, b) => a.numero - b.numero);
+  const tot = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.totale_kg) || 0), 0);
+  $('reg-print').innerHTML = `<h1>Registro DDT ${ANNO} · Trentin Spa – Pegognaga</h1><table><thead><tr><th>N.</th><th>Data</th><th>Destinatario</th><th>Descrizione</th><th>Lotti</th><th>Kg</th><th>Colli</th><th>Stato</th></tr></thead><tbody>${
+    lista.map(b => `<tr><td class="n">${b.numero}</td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(descrDi(b))}</td><td>${esc(lottiDi(b))}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${b.annullata ? 'ANNULLATO' : ''}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="5">Totale kg (esclusi annullati)</th><th class="n">${fmtIT(tot, 0, 2)}</th><th colspan="2"></th></tr></tfoot></table>`;
+  document.body.classList.add('printing-reg');
+  const fine = () => { document.body.classList.remove('printing-reg'); window.removeEventListener('afterprint', fine); };
+  window.addEventListener('afterprint', fine);
+  setTimeout(() => window.print(), 80);
+});
+
+// ---------- impostazioni (Paolo) ----------
+$('im-anno').addEventListener('change', () => { $('im-ultimo').value = CONT[Number($('im-anno').value)] || 0; });
+$('im-salva-num').addEventListener('click', async () => {
+  const a = Number($('im-anno').value), n = parseInt($('im-ultimo').value, 10);
+  if (!Number.isInteger(n) || n < 0) { toast('Numero non valido', true); return; }
+  const { error } = await sb.rpc('ddt_imposta_ultimo', { p_anno: a, p_ultimo: n });
+  if (error) { toast(error.message, true); return; }
+  CONT[a] = n; paintNextNum(); paintAnni(); toast(`Fatto: il prossimo DDT del ${a} sarà il n. ${n + 1}`);
+});
+$('im-salva-copie').addEventListener('click', async () => {
+  const n = Math.max(1, Math.min(20, parseInt($('im-copie').value, 10) || 1));
+  const { error } = await sb.rpc('ddt_imposta_copie', { p_copie: n });
+  if (error) { toast(error.message, true); return; }
+  CFG.copie = n; toast('Copie predefinite: ' + n);
+});
+
+// ---------- navigazione ----------
+function go(p){ location.hash = '#' + p; }
+function route(){
+  let p = (location.hash || '#compila').slice(1);
+  if (!['compila', 'registro', 'rubrica', 'impostazioni'].includes(p)) p = 'compila';
+  if (p === 'impostazioni' && !(ME && ME.admin)) p = 'compila';
+  for (const s of ['compila', 'registro', 'rubrica', 'impostazioni']) $('p-' + s).hidden = s !== p;
+  document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'compila') paintNextNum();
+}
+$('tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab-btn'); if (b) go(b.dataset.p); });
+window.addEventListener('hashchange', route);
+
+// ---------- dati ----------
+async function caricaBolle(){
+  const { data, error } = await sb.from('ddt_bolle').select('*').eq('anno', ANNO).order('numero', { ascending: false }).limit(5000);
+  if (error) throw error; BOLLE = data || [];
+}
+async function loadData(manuale){
+  setStatus('Caricamento…');
+  try {
+    const [d, c, f] = await Promise.all([
+      sb.from('ddt_destinatari').select('*').order('nome'),
+      sb.from('ddt_contatori').select('*'),
+      sb.from('ddt_config').select('*'),
+    ]);
+    for (const r of [d, c, f]) if (r.error) throw r.error;
+    DEST = d.data || []; CONT = {}; (c.data || []).forEach(x => CONT[x.anno] = x.ultimo);
+    (f.data || []).forEach(x => { if (x.chiave === 'copie') CFG.copie = Number(x.valore) || 1; });
+    await caricaBolle();
+    setStatus('Connesso', 'live');
+    paintDestSelect(); paintAnni(); paintRubrica(); paintRegistro(); paintNextNum(); $('im-copie').value = CFG.copie;
+    if (manuale) toast('Dati aggiornati');
+  } catch (e) {
+    setStatus('Errore dati', 'err');
+    const m = String(e.message || e);
+    toast(/ddt_|relation|schema cache/i.test(m) ? 'Mancano le tabelle DDT: esegui lo script SQL «ddt_setup.sql» in Supabase.' : 'Errore nel caricamento: ' + m, true);
+  }
+}
+$('btn-aggiorna').addEventListener('click', () => loadData(true));
+
+// ---------- accesso ----------
+let LOGIN_U = ''; try { LOGIN_U = localStorage.getItem('ddt_utente') || ''; } catch (e) {}
+if (!UTENTI[LOGIN_U]) LOGIN_U = '';
+const paintLoginUser = () => document.querySelectorAll('#login-users button').forEach(b => b.classList.toggle('on', b.dataset.u === LOGIN_U));
+$('login-users').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; LOGIN_U = b.dataset.u; try { localStorage.setItem('ddt_utente', LOGIN_U); } catch (e) {} paintLoginUser(); $('login-pw').focus(); });
+function showLogin(m){ $('login-overlay').classList.add('show'); $('login-msg').textContent = m || ''; paintLoginUser(); }
+$('login-form').addEventListener('submit', async ev => {
+  ev.preventDefault(); if (!sb) return; $('login-msg').textContent = '';
+  if (!LOGIN_U) { $('login-msg').textContent = 'Scegli l\'utente.'; return; }
+  const { error } = await sb.auth.signInWithPassword({ email: UTENTI[LOGIN_U], password: $('login-pw').value });
+  if (error) { $('login-msg').textContent = /invalid/i.test(error.message) ? 'Password non corretta.' : 'Accesso non riuscito: ' + error.message; return; }
+  $('login-pw').value = ''; $('login-overlay').classList.remove('show'); await startApp();
+});
+$('btn-esci').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); ME = null; DEST = []; BOLLE = []; showLogin(); setStatus('Non connesso'); });
+async function startApp(){
+  const { data } = await sb.auth.getSession();
+  const email = (data && data.session && data.session.user.email || '').toLowerCase();
+  if (!NOMI[email]) { showLogin(); return; }
+  ME = { email, nome: NOMI[email], admin: email === 'admin@lotti.local' };
+  $('utente').innerHTML = 'Utente: <b style="color:#fff">' + esc(ME.nome) + '</b>';
+  $('tab-imp').hidden = !ME.admin;
+  DOC = DOC || nuovoDoc(); paintSheet();
+  await loadData(); route();
+}
+async function init(){
+  $('hint-stampa').textContent = 'Il numero viene assegnato al salvataggio; la bolla va alla stampante predefinita.';
+  DOC = nuovoDoc(); paintSheet(); route();
+  if (!sb) { setStatus('Libreria non caricata', 'err'); showLogin('Libreria Supabase non raggiungibile: controlla la rete o la cartella vendor.'); return; }
+  await startApp();
+}
+init();
+</script>
+</body>
+</html>
