@@ -469,8 +469,8 @@ function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, 
 function sheetHTML(d, mode, ctx){
   const E = mode === 'edit'; ctx = ctx || {};
   const T = (path, cls, ph) => E
-    ? `<input data-k="${path}" value="${esc(getp(d, path))}" ${ph ? `placeholder="${esc(ph)}"` : ''} autocomplete="off" spellcheck="false" ${cls ? `class="${cls}"` : ''}>`
-    : esc(getp(d, path));
+    ? `<input data-k="${path}" value="${esc(String(getp(d, path) ?? '').toUpperCase())}" ${ph ? `placeholder="${esc(ph)}"` : ''} autocomplete="off" spellcheck="false" ${cls ? `class="${cls}"` : ''}>`
+    : esc(String(getp(d, path) ?? '').toUpperCase());
   const KG = path => E
     ? `<input data-k="${path}" data-kg="1" inputmode="decimal" value="${esc(kgVis(getp(d, path)))}" data-expr="${esc(getp(d, path.replace(/kg$/, 'kg_expr')) || '')}" autocomplete="off">`
     : esc(kgVis(getp(d, path)));
@@ -518,7 +518,7 @@ function sheetHTML(d, mode, ctx){
   h += H(14.1, `<td colspan="3" class="c gb">${T('vettore.2', 'c')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
   h += H(14.1, `<td colspan="5" class="lab" style="font-size:9.5pt">Consegna o inizio trasporto a mezzo</td><td class="x" style="font-size:9pt">${am === 'cedente' ? 'X' : ''}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${am === 'cessionario' ? 'X' : ''}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${am === 'vettore' ? 'X' : ''}</td><td class="lab" style="background:#fff">vettore</td>`);
   h += H(14.1, `<td colspan="5" class="lab">ANNOTAZIONI - VARIAZIONI</td><td colspan="6" class="nob"></td>`);
-  h += H(14.1, `<td colspan="2" class="lab" style="font-size:9.5pt;text-align:center">TARGA AUTOMEZZO</td><td colspan="4">${T('targa', 'c b')}</td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CONDUCENTE</td>`);
+  h += H(14.1, `<td colspan="2" class="lab" style="font-size:9.5pt;text-align:center">TARGA AUTOMEZZO</td><td colspan="4" class="c">${T('targa', 'c b')}</td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CONDUCENTE</td>`);
   h += H(14.1, `<td colspan="6">${T('annotazioni', '')}</td><td colspan="5" rowspan="1"></td>`);
   if (!S) {
     h += H(14.1, `<td colspan="2" rowspan="2" class="lab" style="font-size:8pt">${E || String(d.bancali).trim() ? 'BANCALI CARICATI' : ''}</td><td colspan="2" rowspan="2" class="c b">${T('bancali', 'c b')}</td><td colspan="2" rowspan="2"></td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CESSIONARIO</td>`);
@@ -589,7 +589,9 @@ function refreshRiga(k){                                // descrizione e «LOTTO
 SHEET.addEventListener('input', ev => {
   const el = ev.target; if (!el.dataset || !el.dataset.k) return;
   const k = el.dataset.k, isKgRiga = /^righe\.\d+\.kg$/.test(k);
-  if (el.dataset.fmt === 'tag') el.value = el.value.toUpperCase();
+  if (el.type === 'text' && !el.dataset.kg && !el.dataset.peso && !isKgRiga) {    // tutto in maiuscolo
+    const u = el.value.toUpperCase(); if (u !== el.value) { const a = el.selectionStart, b = el.selectionEnd; el.value = u; try { el.setSelectionRange(a, b); } catch (e) {} }
+  }
   if (isKgRiga) { kgInput(el); setp(DOC, k, el.value); setp(DOC, k.replace(/kg$/, 'kg_expr'), el.dataset.expr || ''); ricalcolaPeso(); refreshRiga(k); return; }
   if (el.dataset.kg) fmtMigliaia(el);
   if (el.dataset.peso) { DOC.peso = el.value; DOC.peso_manuale = el.value.trim() !== ''; ricalcolaPeso(); if (!DOC.peso_manuale) DOC.peso = ''; return; }
@@ -775,6 +777,9 @@ async function salvaEStampa(stampa){
   try {
     const ritiro_data = editing ? d.ritiro_data : oggiISO(), ritiro_ora = editing ? d.ritiro_ora : oraHHMM();
     const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
+    const UP = x => typeof x === 'string' ? x.toUpperCase() : Array.isArray(x) ? x.map(UP) : x;
+    for (const k of ['ced', 'dest', 'vettore', 'causale', 'targa', 'annotazioni', 'aspetto', 'porto', 'cod_scarico', 'ord_num', 'bancali']) payload[k] = UP(payload[k]);
+    payload.righe = payload.righe.map(r => ({ ...r, desc: UP(r.desc), lotto: UP(r.lotto) }));
     delete payload.copie_rub; delete payload.colli_manuale; delete payload.bozza_id; delete payload.edit_id; delete payload.edit_num; delete payload.edit_data;
     if (editing) {
       const r = await sb.rpc('ddt_modifica', { p_id: d.edit_id, p: payload }); if (r.error) throw r.error; data = r.data;
