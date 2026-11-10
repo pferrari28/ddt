@@ -89,6 +89,16 @@ create table if not exists public.ddt_sfridi (
 );
 create index if not exists ddt_sfridi_cliente_idx on public.ddt_sfridi (cliente, data);
 
+-- Bozze: DDT salvati a metà (senza numero), da riprendere.
+create table if not exists public.ddt_bozze (
+  id uuid primary key default gen_random_uuid(),
+  sfr text,                            -- vuoto = DDT generico; altrimenti padania / rossi / zanetti
+  dati jsonb not null,
+  etichetta text,
+  creato_da text,
+  aggiornato_il timestamptz not null default now()
+);
+
 -- 3) permessi (RLS) ----------------------------------------------------
 alter table public.ddt_destinatari enable row level security;
 alter table public.ddt_contatori   enable row level security;
@@ -96,6 +106,7 @@ alter table public.ddt_config      enable row level security;
 alter table public.ddt_bolle       enable row level security;
 alter table public.ddt_merce_escluse enable row level security;
 alter table public.ddt_sfridi enable row level security;
+alter table public.ddt_bozze enable row level security;
 
 drop policy if exists ddt_dest_all on public.ddt_destinatari;
 create policy ddt_dest_all on public.ddt_destinatari for all to authenticated
@@ -118,6 +129,10 @@ create policy ddt_sfr_sel on public.ddt_sfridi for select to authenticated using
 drop policy if exists ddt_sfr_admin on public.ddt_sfridi;
 create policy ddt_sfr_admin on public.ddt_sfridi for all to authenticated
   using (public.ddt_is_admin()) with check (public.ddt_is_admin());
+
+drop policy if exists ddt_bozze_all on public.ddt_bozze;
+create policy ddt_bozze_all on public.ddt_bozze for all to authenticated
+  using (public.ddt_ok()) with check (public.ddt_ok());
 
 -- le bolle si creano/annullano solo con le funzioni qui sotto (numero sempre univoco)
 

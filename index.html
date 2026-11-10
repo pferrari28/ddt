@@ -188,6 +188,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div style="flex:1;min-width:260px"><b id="edit-titolo"></b><div class="hint">Il numero resta lo stesso. Sistema quello che serve e salva.</div></div>
         <button class="btn sec" id="btn-annulla-mod">Esci senza salvare</button>
       </div>
+      <div class="card" id="bozze-box" hidden style="margin-bottom:14px"></div>
       <div class="toolbar">
         <div class="dest"><label class="l" style="margin-top:0">Destinatario</label>
           <select class="f" id="sel-dest"></select></div>
@@ -199,6 +200,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <div class="sheetwrap edit" id="sheet-edit"></div>
       <div style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
+        <button class="btn sec" id="btn-bozza" title="Salva il DDT a metà, senza numero: lo riprendi quando vuoi">📝 Salva bozza</button>
         <button class="btn sec" id="btn-salva-solo" hidden>💾 Salva senza stampare</button>
         <span class="hint" id="hint-stampa"></span>
       </div>
@@ -444,6 +446,8 @@ function nuovoDoc(dati){
   dic.forEach((t, i) => { d.righe[d.righe.length - dic.length + i].desc = t; });
   return d;
 }
+function docDaDest(r){ const d = nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }); d.copie_rub = r.dati.copie || null; return d; }
+function docGenerico(){ const r = DEST.find(x => /trentin/i.test(x.nome)); return r ? docDaDest(r) : nuovoDoc(); }   // destinatario predefinito: Trentin
 function nuovoDocSfr(key){ const c = SFR[key]; return nuovoDoc({ ...c.base, n: c.n, sfr: key, aspetto: 'A VISTA', copie: CFG.copie }); }
 function rigaUsata(d, r){ const f = x => String(x ?? '').trim(); return d.sfr ? !!(f(r.kg) || f(r.lotto) || f(r.matr) || f(r.mese) || f(r.tag)) : !!(f(r.kg) || f(r.desc) || f(r.lotto)); }
 function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = kgRiga(r); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
@@ -526,15 +530,16 @@ function paintEditUI(){
   $('edit-banner').hidden = !ed; $('edit-banner').style.display = ed ? 'flex' : 'none';
   if (ed) $('edit-titolo').textContent = `✏️ Stai modificando il DDT n. ${DOC.edit_num} del ${fmtData(DOC.edit_data)}`;
   $('btn-stampa').textContent = ed ? '🖨️ SALVA MODIFICHE E STAMPA' : '🖨️ SALVA E STAMPA';
-  $('btn-salva-solo').hidden = !ed;
+  $('btn-salva-solo').hidden = !ed; $('btn-bozza').hidden = ed;
   for (const id of ['sel-dest', 'btn-nuovo-dest', 'btn-svuota']) $(id).disabled = ed;
   const sf = !!(DOC && DOC.sfr);
   $('cmp-title').textContent = sf ? 'Sfridi · ' + SFR[DOC.sfr].nome : 'Nuovo DDT';
   $('cmp-sub').textContent = sf ? 'Descrizione automatica. Nei kg puoi scrivere somme, es. =136+130. Il registro bancali e consegne si aggiorna da solo.' : 'Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.';
   document.querySelector('#p-compila .toolbar .dest').hidden = sf; $('btn-nuovo-dest').hidden = sf; $('btn-salva-rub').hidden = sf;
   $('sf-ledger').hidden = !sf; if (sf) paintSfLedger();
+  paintBozze();
 }
-$('btn-annulla-mod').addEventListener('click', () => { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); go('registro'); });
+$('btn-annulla-mod').addEventListener('click', () => { DOC = docGenerico(); paintSheet(); paintDestSelect(); paintNextNum(); go('registro'); });
 function ricalcolaPeso(){
   const el = document.querySelector('#sheet-edit [data-peso]'); if (!el) return;
   if (!DOC.peso_manuale) { el.value = kgTxt(sommaKg(DOC)); el.classList.add('auto'); } else el.classList.remove('auto');
@@ -545,8 +550,7 @@ function paintDestSelect(){
 }
 function applicaDestinatario(id){
   const r = DEST.find(x => x.id === id);
-  DOC = r ? nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }) : nuovoDoc();
-  if (r) DOC.copie_rub = r.dati.copie || null;
+  DOC = r ? docDaDest(r) : nuovoDoc();
   paintSheet(); paintDestSelect();
 }
 function paintNextNum(){
@@ -554,7 +558,7 @@ function paintNextNum(){
   $('next-num').textContent = (CONT[y] || 0) + 1 + ' / ' + y;
 }
 $('sel-dest').addEventListener('change', () => applicaDestinatario($('sel-dest').value));
-$('btn-svuota').addEventListener('click', () => { DOC = DOC.sfr ? nuovoDocSfr(DOC.sfr) : nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); });
+$('btn-svuota').addEventListener('click', () => { DOC = DOC.sfr ? nuovoDocSfr(DOC.sfr) : docGenerico(); paintSheet(); paintDestSelect(); paintNextNum(); });
 $('btn-nuovo-dest').addEventListener('click', () => { DOC = nuovoDoc({ a_mezzo: 'vettore' }); paintSheet(); paintDestSelect(); const f = document.querySelector('#sheet-edit [data-k="ced.0"]'); if (f) f.focus(); toast('Scrivi il destinatario nel modulo, poi «Salva in rubrica» (o salverò alla stampa).'); });
 $('in-copie').addEventListener('input', () => { DOC.copie = Math.max(1, Math.min(20, parseInt($('in-copie').value, 10) || 1)); });
 
@@ -746,7 +750,7 @@ async function salvaEStampa(stampa){
   try {
     const ritiro_data = editing ? d.ritiro_data : oggiISO(), ritiro_ora = editing ? d.ritiro_ora : oraHHMM();
     const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
-    delete payload.copie_rub; delete payload.colli_manuale; delete payload.edit_id; delete payload.edit_num; delete payload.edit_data;
+    delete payload.copie_rub; delete payload.colli_manuale; delete payload.bozza_id; delete payload.edit_id; delete payload.edit_num; delete payload.edit_data;
     if (editing) {
       const r = await sb.rpc('ddt_modifica', { p_id: d.edit_id, p: payload }); if (r.error) throw r.error; data = r.data;
       const i = BOLLE.findIndex(x => x.id === data.id); if (i >= 0) BOLLE[i] = data; else BOLLE.unshift(data);
@@ -767,8 +771,9 @@ async function salvaEStampa(stampa){
     toast(`DDT n. ${data.numero} SALVATO, ma la stampa non è partita (${e.message || e}). Usa «Ristampa» nel registro.`, true);
   }
   BUSY = false; $('btn-stampa').disabled = false; $('btn-salva-solo').disabled = false;
+  if (d.bozza_id) { try { await sb.from('ddt_bozze').delete().eq('id', d.bozza_id); BOZZE = BOZZE.filter(x => x.id !== d.bozza_id); } catch (e) {} }
   await caricaSfridi();
-  if (d.sfr && !editing) { DOC = nuovoDocSfr(d.sfr); paintSheet(); } else applicaDestinatario(editing ? '' : (d.dest_id || ''));
+  if (d.sfr && !editing) { DOC = nuovoDocSfr(d.sfr); paintSheet(); } else if (editing || !d.dest_id) { DOC = docGenerico(); paintSheet(); paintDestSelect(); } else applicaDestinatario(d.dest_id);
   paintNextNum(); paintRegistro();
   if (editing) go('registro');
 }
@@ -873,6 +878,45 @@ $('btn-regprint').addEventListener('click', () => {
   const fine = () => { document.body.classList.remove('printing-reg'); window.removeEventListener('afterprint', fine); };
   window.addEventListener('afterprint', fine);
   setTimeout(() => window.print(), 80);
+});
+
+// ---------- bozze (DDT salvati a metà, senza numero) ----------
+let BOZZE = [], BOZ_OK = true;
+async function caricaBozze(){
+  const r = await sb.from('ddt_bozze').select('*').order('aggiornato_il', { ascending: false });
+  if (r.error) { BOZ_OK = false; BOZZE = []; return; } BOZ_OK = true; BOZZE = r.data || [];
+}
+function paintBozze(){
+  const box = $('bozze-box'); if (!box) return;
+  const mie = BOZZE.filter(b => (b.sfr || '') === ((DOC && DOC.sfr) || ''));
+  box.hidden = !(DOC && !DOC.edit_id && mie.length); if (box.hidden) return;
+  box.innerHTML = `<b>📝 Bozze salvate (${mie.length})</b><div class="hint" style="margin-bottom:6px">DDT lasciati a metà: riprendili da dove eri arrivato.</div>` + mie.map(b => `<div style="display:flex;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line);flex-wrap:wrap">
+    <div style="flex:1;min-width:240px"><b>${esc(b.etichetta || 'Senza destinatario')}</b> ${DOC && DOC.bozza_id === b.id ? '<span class="badge ok">aperta</span>' : ''}<div class="hint">salvata il ${esc(new Date(b.aggiornato_il).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' }))} · ${esc(NOMI[b.creato_da] || b.creato_da || '')}</div></div>
+    <button class="btn small" data-a="riprendi" data-id="${b.id}">Riprendi</button> <button class="btn small sec" data-a="elimina" data-id="${b.id}">Elimina</button></div>`).join('');
+}
+$('bozze-box').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-a]'); if (!b) return; const id = b.dataset.id, bz = BOZZE.find(x => x.id === id); if (!bz) return;
+  if (b.dataset.a === 'riprendi') {
+    const d = nuovoDoc(); Object.assign(d, clone(bz.dati), { bozza_id: bz.id, data: oggiISO() });
+    delete d.edit_id; delete d.edit_num; delete d.edit_data;
+    d.righe = clone(Array.from({ length: nRighe(d) }, (_, i) => (bz.dati.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
+    DOC = d; go(d.sfr ? 'sf-' + d.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0); toast('Bozza ripresa: continua da dove eri rimasto');
+  } else {
+    openModal(`<h2>Eliminare la bozza?</h2><p>${esc(bz.etichetta || 'Senza destinatario')}: non si può recuperare.</p><div class="acts"><button class="btn sec" id="bz-no">Annulla</button><button class="btn danger" id="bz-si">Elimina</button></div>`);
+    $('bz-no').onclick = closeModal;
+    $('bz-si').onclick = async () => { const r = await sb.from('ddt_bozze').delete().eq('id', id); closeModal(); if (r.error) { toast('Non eliminata: ' + r.error.message, true); return; } BOZZE = BOZZE.filter(x => x.id !== id); if (DOC && DOC.bozza_id === id) DOC.bozza_id = ''; paintBozze(); toast('Bozza eliminata'); };
+  }
+});
+$('btn-bozza').addEventListener('click', async () => {
+  if (BUSY || !DOC || DOC.edit_id) return;
+  if (!BOZ_OK) { toast('Manca la tabella delle bozze: riesegui lo script SQL «ddt_setup.sql» in Supabase.', true); return; }
+  if (!String(DOC.ced[0]).trim() && !DOC.righe.some(r => rigaUsata(DOC, r))) { toast('Il modulo è vuoto: non c\'è niente da salvare.', true); return; }
+  const kg = sommaKg(DOC);
+  const rec = { sfr: DOC.sfr || null, dati: (() => { const x = clone(DOC); delete x.bozza_id; delete x.copie_rub; return x; })(), etichetta: (String(DOC.ced[0]).trim() || (DOC.sfr ? SFR[DOC.sfr].nome : 'Senza destinatario')) + (kg ? ' · ' + fmtIT(kg, 0, 2) + ' kg' : ''), creato_da: ME ? ME.email : null, aggiornato_il: new Date().toISOString() };
+  const r = DOC.bozza_id ? await sb.from('ddt_bozze').update(rec).eq('id', DOC.bozza_id).select().single() : await sb.from('ddt_bozze').insert(rec).select().single();
+  if (r.error) { toast('Bozza non salvata: ' + r.error.message, true); return; }
+  DOC.bozza_id = r.data.id; const i = BOZZE.findIndex(x => x.id === r.data.id); if (i >= 0) BOZZE[i] = r.data; else BOZZE.unshift(r.data);
+  paintBozze(); toast('Bozza salvata: la ritrovi in cima a questa pagina');
 });
 
 // ---------- registro sfridi (bancali e consegne per cliente) ----------
@@ -1039,7 +1083,7 @@ function route(){
   document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.p === act));
   if (p === 'compila' && ME) {
     if (sfKey) { if (!DOC || DOC.sfr !== sfKey) { DOC = nuovoDocSfr(sfKey); paintSheet(); } }
-    else if (DOC && DOC.sfr && !DOC.edit_id) { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); }
+    else if (DOC && DOC.sfr && !DOC.edit_id) { DOC = docGenerico(); paintSheet(); paintDestSelect(); }
   }
   if (p === 'merce') paintMerce(); if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'compila') paintNextNum();
 }
@@ -1067,7 +1111,8 @@ async function loadData(manuale){
     for (const r of [d, c, f]) if (r.error) throw r.error;
     DEST = d.data || []; CONT = {}; (c.data || []).forEach(x => CONT[x.anno] = x.ultimo);
     (f.data || []).forEach(x => { if (x.chiave === 'copie') CFG.copie = Number(x.valore) || 1; });
-    await caricaBolle(); await caricaSfridi();
+    await caricaBolle(); await caricaSfridi(); await caricaBozze();
+    if (DOC && !DOC.sfr && !DOC.edit_id && !DOC.dest_id && !String(DOC.ced[0]).trim() && !DOC.righe.some(r => rigaUsata(DOC, r))) { DOC = docGenerico(); paintSheet(); }
     setStatus('Connesso', 'live');
     paintDestSelect(); paintAnni(); paintRubrica(); paintRegistro(); paintMerce(); paintNextNum(); $('im-copie').value = CFG.copie;
     if (manuale) toast('Dati aggiornati');
