@@ -99,6 +99,20 @@ create table if not exists public.ddt_bozze (
   aggiornato_il timestamptz not null default now()
 );
 
+-- Vettori e targhe: elenchi a tendina del modulo DDT.
+create table if not exists public.ddt_vettori (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null unique,           -- ditta (prima riga del campo vettore)
+  riga2 text, riga3 text,              -- indirizzo; CAP città (provincia)
+  creato_il timestamptz not null default now()
+);
+create table if not exists public.ddt_targhe (
+  id uuid primary key default gen_random_uuid(),
+  targa text not null unique,
+  vettore text,                        -- nome del vettore a cui appartiene (facoltativo)
+  creato_il timestamptz not null default now()
+);
+
 -- 3) permessi (RLS) ----------------------------------------------------
 alter table public.ddt_destinatari enable row level security;
 alter table public.ddt_contatori   enable row level security;
@@ -107,6 +121,8 @@ alter table public.ddt_bolle       enable row level security;
 alter table public.ddt_merce_escluse enable row level security;
 alter table public.ddt_sfridi enable row level security;
 alter table public.ddt_bozze enable row level security;
+alter table public.ddt_vettori enable row level security;
+alter table public.ddt_targhe enable row level security;
 
 drop policy if exists ddt_dest_all on public.ddt_destinatari;
 create policy ddt_dest_all on public.ddt_destinatari for all to authenticated
@@ -130,6 +146,10 @@ drop policy if exists ddt_sfr_admin on public.ddt_sfridi;
 create policy ddt_sfr_admin on public.ddt_sfridi for all to authenticated
   using (public.ddt_is_admin()) with check (public.ddt_is_admin());
 
+drop policy if exists ddt_vettori_all on public.ddt_vettori;
+create policy ddt_vettori_all on public.ddt_vettori for all to authenticated using (public.ddt_ok()) with check (public.ddt_ok());
+drop policy if exists ddt_targhe_all on public.ddt_targhe;
+create policy ddt_targhe_all on public.ddt_targhe for all to authenticated using (public.ddt_ok()) with check (public.ddt_ok());
 drop policy if exists ddt_bozze_all on public.ddt_bozze;
 create policy ddt_bozze_all on public.ddt_bozze for all to authenticated
   using (public.ddt_ok()) with check (public.ddt_ok());
