@@ -173,6 +173,10 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div><h2>Nuovo DDT</h2><p>Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.</p></div>
         <div class="nextnum">Prossimo numero<br><b id="next-num">—</b></div>
       </div>
+      <div class="card" id="edit-banner" hidden style="margin-bottom:14px;background:var(--warn-bg);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:260px"><b id="edit-titolo"></b><div class="hint">Il numero resta lo stesso. Sistema quello che serve e salva.</div></div>
+        <button class="btn sec" id="btn-annulla-mod">Esci senza salvare</button>
+      </div>
       <div class="toolbar">
         <div class="dest"><label class="l" style="margin-top:0">Destinatario</label>
           <select class="f" id="sel-dest"></select></div>
@@ -184,6 +188,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <div class="sheetwrap edit" id="sheet-edit"></div>
       <div style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
+        <button class="btn sec" id="btn-salva-solo" hidden>💾 Salva senza stampare</button>
         <span class="hint" id="hint-stampa"></span>
       </div>
     </section>
@@ -378,7 +383,7 @@ function sheetHTML(d, mode, ctx){
   h += H(15.95, `<td colspan="4" class="lab">CAUSALE DEL TRASPORTO</td><td class="lab">VS. ORDINE N.</td><td></td><td class="lab">DATA</td><td colspan="2" class="lab">Cod. scarico</td><td class="x">${X(d.in_conto, 'in_conto')}</td><td class="lab">IN CONTO</td>`);
   h += H(15.95, `<td colspan="4" class="c b">${T('causale', 'c b')}</td><td class="c">${T('ord_num', 'c')}</td><td></td><td class="c">${T('ord_data', 'c')}</td><td colspan="2" class="c">${T('cod_scarico', 'c')}</td><td class="x">${X(d.a_saldo, 'a_saldo')}</td><td class="lab">A SALDO</td>`);
   h += H(15.95, `<td colspan="2" class="lab m" style="font-size:9.5pt">QUANTITÀ (IN KG)</td><td colspan="7" class="lab m" style="font-size:9.5pt">DESCRIZIONE DEI BENI</td><td colspan="2" class="lab m" style="font-size:9.5pt">LOTTO</td>`);
-  for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7"${String(d.righe[i].desc).length > 52 ? ' style="font-size:9pt"' : ''}>${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
+  for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7"${String((d.righe[i] || {}).desc || '').length > 52 ? ' style="font-size:9pt"' : ''}>${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
   h += H(14.1, `<td colspan="3" class="lab">ASPETTO ESTERIORE DEI BENI</td><td class="lab">N. COLLI</td><td colspan="2" class="lab">PESO KG.</td><td colspan="2" class="lab">PORTO</td><td rowspan="2" class="lab" style="font-size:10pt">TOTALE €</td><td colspan="2" rowspan="2" class="c">${T('totale', 'c')}</td>`);
   h += H(18.95, `<td colspan="3" class="c b" style="font-size:11pt">${T('aspetto', 'c b')}</td><td class="c b">${T('colli', 'c b')}</td><td colspan="2" class="c b">${E ? `<input data-k="peso" data-kg="1" data-peso="1" class="${d.peso_manuale ? '' : 'auto'}" value="${esc(pesoShown)}" inputmode="decimal" style="text-align:center;font-weight:700">` : esc(pesoShown)}</td><td colspan="2" class="c">${T('porto', 'c')}</td>`);
   h += H(12, `<td colspan="3" class="lab" style="font-size:8pt">VETTORE: ditta, domicilio o residenza</td><td colspan="2" class="lab" style="font-size:7pt">DATA E ORA DEL RITIRO</td><td colspan="6" rowspan="4"></td>`);
@@ -396,9 +401,18 @@ function sheetHTML(d, mode, ctx){
 
 // ---------- compilazione ----------
 function paintSheet(){
-  $('sheet-edit').innerHTML = sheetHTML(DOC, 'edit');
-  $('in-copie').value = DOC.copie;
+  $('sheet-edit').innerHTML = sheetHTML(DOC, 'edit', DOC.edit_id ? { numero: DOC.edit_num, ritiro_data: DOC.ritiro_data, ritiro_ora: DOC.ritiro_ora } : undefined);
+  $('in-copie').value = DOC.copie; paintEditUI();
 }
+function paintEditUI(){
+  const ed = !!(DOC && DOC.edit_id);
+  $('edit-banner').hidden = !ed; $('edit-banner').style.display = ed ? 'flex' : 'none';
+  if (ed) $('edit-titolo').textContent = `✏️ Stai modificando il DDT n. ${DOC.edit_num} del ${fmtData(DOC.edit_data)}`;
+  $('btn-stampa').textContent = ed ? '🖨️ SALVA MODIFICHE E STAMPA' : '🖨️ SALVA E STAMPA';
+  $('btn-salva-solo').hidden = !ed;
+  for (const id of ['sel-dest', 'btn-nuovo-dest', 'btn-svuota']) $(id).disabled = ed;
+}
+$('btn-annulla-mod').addEventListener('click', () => { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); go('registro'); });
 function ricalcolaPeso(){
   const el = document.querySelector('#sheet-edit [data-peso]'); if (!el) return;
   if (!DOC.peso_manuale) { el.value = kgTxt(sommaKg(DOC)); el.classList.add('auto'); } else el.classList.remove('auto');
@@ -569,7 +583,7 @@ $('rb-wrap').addEventListener('click', async ev => {
 function dicDi(d){ const r = DEST.find(x => x.id === d.dest_id); return ((r && r.dati.diciture) || []).map(x => String(x).trim()); }
 function haMerce(d){ const dic = dicDi(d); return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim() || (String(r.desc).trim() && !dic.includes(String(r.desc).trim()))); }
 function righeUtili(d){ return d.righe.filter(r => String(r.kg).trim() || String(r.desc).trim() || String(r.lotto).trim()); }
-async function salvaEStampa(){
+async function salvaEStampa(stampa){
   if (BUSY) return;
   const d = DOC;
   if (!String(d.ced[0]).trim()) { toast('Manca il destinatario: scegli dall\'elenco o scrivilo nel modulo.', true); return; }
@@ -585,26 +599,40 @@ async function salvaEStampa(){
     if (scelta === 'ann') return;
     if (scelta === 'si') { try { const nome = await chiediNome(d.ced[0]); if (!nome) return; const s = await salvaDest(null, datiRubrica(d), nome); d.dest_id = s.id; paintDestSelect(); } catch (e) { toast('Rubrica non salvata: ' + (e.message || e), true); return; } }
   }
-  BUSY = true; $('btn-stampa').disabled = true; $('btn-stampa').textContent = '⏳ Salvataggio…';
+  BUSY = true; $('btn-stampa').disabled = true; $('btn-salva-solo').disabled = true; const testoBtn = $('btn-stampa').textContent; $('btn-stampa').textContent = '⏳ Salvataggio…';
+  const editing = !!d.edit_id;
+  let data = null;
   try {
-    const ritiro_data = oggiISO(), ritiro_ora = oraHHMM();
+    const ritiro_data = editing ? d.ritiro_data : oggiISO(), ritiro_ora = editing ? d.ritiro_ora : oraHHMM();
     const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
-    delete payload.copie_rub;
-    const { data, error } = await sb.rpc('ddt_emetti', { p: payload });
-    if (error) throw error;
-    BOLLE.unshift(data); if ((CONT[data.anno] || 0) < data.numero) CONT[data.anno] = data.numero;
-    stampaBolla(data, data.copie);
-    toast(`DDT n. ${data.numero} salvato e inviato alla stampante (${data.copie} ${data.copie === 1 ? 'copia' : 'copie'})`);
-    // modulo pulito per la bolla successiva (stesso destinatario)
-    applicaDestinatario(d.dest_id || ''); paintNextNum(); paintRegistro();
+    delete payload.copie_rub; delete payload.edit_id; delete payload.edit_num; delete payload.edit_data;
+    if (editing) {
+      const r = await sb.rpc('ddt_modifica', { p_id: d.edit_id, p: payload }); if (r.error) throw r.error; data = r.data;
+      const i = BOLLE.findIndex(x => x.id === data.id); if (i >= 0) BOLLE[i] = data; else BOLLE.unshift(data);
+    } else {
+      const r = await sb.rpc('ddt_emetti', { p: payload }); if (r.error) throw r.error; data = r.data;
+      BOLLE.unshift(data); if ((CONT[data.anno] || 0) < data.numero) CONT[data.anno] = data.numero;
+    }
   } catch (e) {
-    toast('DDT NON salvato (nessun numero consumato): ' + (e.message || e), true);
-  } finally { BUSY = false; $('btn-stampa').disabled = false; $('btn-stampa').textContent = '🖨️ SALVA E STAMPA'; }
+    toast('DDT NON salvato' + (editing ? '' : ' (nessun numero consumato)') + ': ' + (e.message || e), true);
+    BUSY = false; $('btn-stampa').disabled = false; $('btn-salva-solo').disabled = false; $('btn-stampa').textContent = testoBtn; return;
+  }
+  // salvato: ora la stampa (un eventuale errore qui NON significa che il DDT non sia stato salvato)
+  try {
+    if (stampa !== false) { stampaBolla(data, data.copie); toast(`DDT n. ${data.numero} ${editing ? 'modificato, salvato' : 'salvato'} e inviato alla stampante (${data.copie} ${data.copie === 1 ? 'copia' : 'copie'})`); }
+    else toast(`DDT n. ${data.numero} modificato e salvato`);
+  } catch (e) {
+    toast(`DDT n. ${data.numero} SALVATO, ma la stampa non è partita (${e.message || e}). Usa «Ristampa» nel registro.`, true);
+  }
+  BUSY = false; $('btn-stampa').disabled = false; $('btn-salva-solo').disabled = false;
+  applicaDestinatario(editing ? '' : (d.dest_id || '')); paintNextNum(); paintRegistro();
+  if (editing) go('registro');
 }
-$('btn-stampa').addEventListener('click', salvaEStampa);
+$('btn-stampa').addEventListener('click', () => salvaEStampa(true));
+$('btn-salva-solo').addEventListener('click', () => salvaEStampa(false));
 
 function stampaBolla(row, copie){
-  const d = row.dati, ctx = { numero: row.numero, ritiro_data: d.ritiro_data, ritiro_ora: d.ritiro_ora };
+  const d = { ...row.dati, righe: Array.from({ length: N_RIGHE }, (_, i) => (row.dati.righe || [])[i] || { kg: '', desc: '', lotto: '' }) }, ctx = { numero: row.numero, ritiro_data: d.ritiro_data, ritiro_ora: d.ritiro_ora };
   const pag = `<div class="pagina">${sheetHTML({ ...d, data: row.data }, 'print', ctx)}</div>`;
   $('print-root').innerHTML = Array.from({ length: Math.max(1, copie || 1) }, () => pag).join('');
   document.body.classList.add('printing');
@@ -634,7 +662,7 @@ function paintRegistro(){
   const colli = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.colli) || 0), 0);
   $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>N.</th><th>Data</th><th>Destinatario</th><th>Causale</th><th>Descrizione</th><th>Lotti</th><th>Kg</th><th>Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
     lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td>${esc(descrDi(b))}</td><td>${esc(lottiDi(b))}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
-      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button></td></tr>`).join('')
+      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button></td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="6">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
     : '<div class="empty">Nessun DDT per questi filtri.</div>';
 }
@@ -656,8 +684,14 @@ $('rg-wrap').addEventListener('click', async ev => {
   if (b.dataset.a === 'rist') {
     openModal(`<h2>Ristampa DDT n. ${row.numero}</h2><p class="hint">Stessa bolla, stesso numero: non si crea nessun nuovo DDT.</p><label class="l">Copie</label><input class="f" id="rs-copie" type="number" min="1" max="20" value="${row.copie || 1}"><div class="acts"><button class="btn sec" id="rs-no">Annulla</button><button class="btn" id="rs-si">🖨️ Stampa</button></div>`);
     $('rs-no').onclick = closeModal; $('rs-si').onclick = () => { const n = Math.max(1, parseInt($('rs-copie').value, 10) || 1); closeModal(); stampaBolla(row, n); };
+  } else if (b.dataset.a === 'mod') {
+    DOC = nuovoDoc(); const { peso_num, numero, ...resto } = row.dati;
+    Object.assign(DOC, clone(resto), { data: row.data, edit_id: row.id, edit_num: row.numero, edit_data: row.data });
+    DOC.righe = clone(Array.from({ length: N_RIGHE }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
+    DOC.copie = row.copie || DOC.copie;
+    go('compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0);
   } else if (b.dataset.a === 'dup') {
-    DOC = nuovoDoc(); const { ritiro_data, ritiro_ora, peso_num, numero, ...resto } = row.dati;
+    DOC = nuovoDoc(); const { ritiro_data, ritiro_ora, peso_num, numero, edit_id, edit_num, edit_data, ...resto } = row.dati;
     Object.assign(DOC, clone(resto), { data: oggiISO() });
     const righe = Array.from({ length: N_RIGHE }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }); DOC.righe = clone(righe);
     go('compila'); paintSheet(); paintDestSelect(); paintNextNum(); toast('Bolla copiata in un nuovo DDT: controlla e premi «Salva e stampa».');

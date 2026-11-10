@@ -114,6 +114,34 @@ begin
   return to_jsonb(v_row);
 end $$;
 
+-- Modifica un DDT già emesso: il numero e l'anno restano gli stessi.
+create or replace function public.ddt_modifica(p_id uuid, p jsonb)
+returns jsonb language plpgsql security definer set search_path = public as
+$$
+declare
+  v_old public.ddt_bolle;
+  v_data date := coalesce(nullif(p ->> 'data', '')::date, current_date);
+  v_row public.ddt_bolle;
+begin
+  if not public.ddt_ok() then raise exception 'Utente non abilitato ai DDT'; end if;
+  select * into v_old from public.ddt_bolle where id = p_id;
+  if not found then raise exception 'DDT non trovato'; end if;
+  if extract(year from v_data)::int <> v_old.anno then
+    raise exception 'La data deve restare nell''anno %, perché il numero appartiene a quell''anno', v_old.anno;
+  end if;
+  update public.ddt_bolle set
+    data = v_data,
+    dest_id = nullif(p ->> 'dest_id', '')::uuid,
+    dest_nome = p -> 'ced' ->> 0,
+    causale = p ->> 'causale',
+    totale_kg = nullif(p ->> 'peso_num', '')::numeric,
+    colli = nullif(p ->> 'colli', '')::int,
+    copie = greatest(coalesce(nullif(p ->> 'copie', '')::int, 1), 1),
+    dati = p
+  where id = p_id returning * into v_row;
+  return to_jsonb(v_row);
+end $$;
+
 create or replace function public.ddt_annulla(p_id uuid, p_annulla boolean default true)
 returns void language plpgsql security definer set search_path = public as
 $$
@@ -148,5 +176,5 @@ begin
 end $$;
 
 grant execute on function public.ddt_ok(), public.ddt_is_admin(),
-  public.ddt_emetti(jsonb), public.ddt_annulla(uuid, boolean),
+  public.ddt_emetti(jsonb), public.ddt_modifica(uuid, jsonb), public.ddt_annulla(uuid, boolean),
   public.ddt_imposta_ultimo(int, int), public.ddt_imposta_copie(int) to authenticated;
