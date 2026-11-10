@@ -86,6 +86,8 @@ table.t tfoot td{font-weight:700;background:var(--head);}
 .overlay.show{display:flex;}
 .login-card,.modal{background:#fff;border-radius:12px;padding:26px 28px;width:min(440px,100%);max-height:92vh;overflow:auto;}
 .modal.wide{width:min(720px,100%);}
+.modal.xl{width:min(840px,100%);}
+.modal.xl .sheetwrap{background:#fff;border:1px solid var(--line);}
 .login-card h2,.modal h2{margin:0 0 6px;font-size:1.35rem;}
 .choice{display:flex;gap:8px;margin:12px 0 4px;}
 .choice button{flex:1;padding:11px;border:1px solid var(--line);background:#fff;border-radius:8px;font-weight:600;cursor:pointer;font-size:.95rem;}
@@ -910,6 +912,59 @@ function stampaBolla(row, copie){
   setTimeout(() => window.print(), 80);
 }
 
+
+// ---------- visualizzazione rapida e PDF ----------
+function htmlBolla(row){
+  const d = { ...row.dati, righe: Array.from({ length: nRighe(row.dati) }, (_, i) => (row.dati.righe || [])[i] || { kg: '', desc: '', lotto: '' }) };
+  return sheetHTML({ ...d, data: row.data }, 'print', { numero: row.numero, ritiro_data: d.ritiro_data, ritiro_ora: d.ritiro_ora });
+}
+function vediBolla(row){
+  openModal(`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0;flex:1">DDT n. ${row.numero}/${row.anno} ${row.annullata ? '<span class="badge ann">ANNULLATO</span>' : ''}</h2><button class="btn" id="vd-pdf">⬇ Scarica PDF</button><button class="btn sec" id="vd-x">Chiudi</button></div><div class="sheetwrap" id="vd-sheet" style="padding:0">${htmlBolla(row)}</div>`, 'xl');
+  $('modal').classList.add('xl'); $('modal').classList.remove('wide');
+  $('vd-x').onclick = closeModal;
+  $('vd-pdf').onclick = async () => {
+    const b = $('vd-pdf'); b.disabled = true;
+    try { await scaricaPdfBolla(row, $('vd-sheet').querySelector('table.sheet')); } catch (e) { toast('PDF non creato: ' + e.message, true); }
+    b.disabled = false;
+  };
+}
+async function tabellaInJpeg(tab, scala){
+  const w = Math.ceil(tab.offsetWidth), h = Math.ceil(tab.offsetHeight);
+  let css = ''; for (const sh of document.styleSheets) { try { for (const r of sh.cssRules) if (r.type === 1 && /\.sheet|^table|^td|^th|^\*/.test(r.selectorText || '')) css += r.cssText + '\n'; } catch (e) {} }
+  const box = document.createElement('div'); box.appendChild(tab.cloneNode(true));
+  const st = document.createElement('style'); st.textContent = css; box.prepend(st);
+  box.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml'); box.style.cssText = 'background:#fff;width:' + w + 'px';
+  const xml = new XMLSerializer().serializeToString(box);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${xml}</foreignObject></svg>`;
+  const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('immagine non generata')); });
+  const cv = document.createElement('canvas'); cv.width = w * scala; cv.height = h * scala;
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+  const bin = atob(cv.toDataURL('image/jpeg', 0.93).split(',')[1]); const jpg = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) jpg[i] = bin.charCodeAt(i);
+  return { jpg, pw: cv.width, ph: cv.height, w, h };
+}
+function pdfDaJpeg({ jpg, pw, ph, w, h }){   // una pagina A4 con l'immagine del DDT (margini 10 mm / 8 mm come in stampa)
+  const enc = new TextEncoder(), parts = [], off = []; let len = 0;
+  const push = x => { const u = typeof x === 'string' ? enc.encode(x) : x; parts.push(u); len += u.length; };
+  const W = 595.28, H = 841.89, mx = 28.35, my = 22.68, iw = W - 2 * mx, ih = Math.min(iw * h / w, H - 2 * my);
+  const content = `q ${iw.toFixed(2)} 0 0 ${ih.toFixed(2)} ${mx} ${(H - my - ih).toFixed(2)} cm /Im0 Do Q`;
+  push('%PDF-1.4\n'); const obj = (n, body) => { off[n] = len; push(`${n} 0 obj\n`); body(); push('\nendobj\n'); };
+  obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, () => push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'));
+  obj(3, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`));
+  obj(4, () => { push(`<< /Type /XObject /Subtype /Image /Width ${pw} /Height ${ph} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); push(jpg); push('\nendstream'); });
+  obj(5, () => push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
+  const x0 = len; push('xref\n0 6\n0000000000 65535 f \n'); for (let n = 1; n <= 5; n++) push(String(off[n]).padStart(10, '0') + ' 00000 n \n');
+  push(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x0}\n%%EOF`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+async function scaricaPdfBolla(row, tab){
+  const blob = pdfDaJpeg(await tabellaInJpeg(tab, 2.5));
+  const nome = `DDT_${row.numero}_${row.anno}_${String(row.dest_nome || '').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30)}.pdf`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('PDF scaricato: ' + nome);
+}
+
 // ---------- registro ----------
 const REG = { q: '', da: '', a: '', st: '' };
 function lottiDi(b){ return [...new Set((b.dati.righe || []).map(r => String(r.lotto || '').trim()).filter(Boolean))].join(', '); }
@@ -931,8 +986,8 @@ function paintRegistro(){
   const colli = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.colli) || 0), 0);
   $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th class="n">N.</th><th class="n">Data</th><th>Destinatario</th><th>Causale</th><th class="n">Kg</th><th class="n">Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
     lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
-      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button>${ME && ME.admin ? ` <button class="btn small danger" data-a="elim" data-id="${b.id}" title="Elimina definitivamente (solo Paolo)">Elimina</button>` : ''}</td></tr>`).join('')
-  }</tbody><tfoot><tr><td colspan="6">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
+      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}<button class="btn small" data-a="vedi" data-id="${b.id}" title="Visualizza il DDT e scaricalo in PDF">👁 Vedi</button> ${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button>${ME && ME.admin ? ` <button class="btn small danger" data-a="elim" data-id="${b.id}" title="Elimina definitivamente (solo Paolo)">Elimina</button>` : ''}</td></tr>`).join('')
+  }</tbody><tfoot><tr><td colspan="4">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
     : '<div class="empty">Nessun DDT per questi filtri.</div>';
 }
 function paintAnni(){
@@ -967,6 +1022,8 @@ $('rg-wrap').addEventListener('click', async ev => {
     Object.assign(DOC, clone(resto), { data: oggiISO() });
     const righe = Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }); DOC.righe = clone(righe);
     go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); toast('Bolla copiata in un nuovo DDT: controlla e premi «Salva e stampa».');
+  } else if (b.dataset.a === 'vedi') {
+    vediBolla(row);
   } else if (b.dataset.a === 'elim') {
     if (!(ME && ME.admin)) return;
     openModal(`<h2>Eliminare definitivamente il DDT n. ${row.numero}?</h2><p style="line-height:1.5">${esc(row.dest_nome || '')} · ${fmtData(row.data)}<br>Il DDT sparisce dal registro, da «Merce uscita» e dal registro sfridi, e <b>non si può recuperare</b>. Se è l'ultimo numero dell'anno, il numero torna disponibile.</p><div class="acts"><button class="btn sec" id="el-no">Annulla</button><button class="btn danger" id="el-si">Elimina definitivamente</button></div>`);
