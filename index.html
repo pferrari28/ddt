@@ -205,7 +205,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <div style="margin-top:18px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
         <button class="btn sec" id="btn-bozza" title="Salva il DDT a metà, senza numero: lo riprendi quando vuoi">📝 Salva bozza</button>
-        <button class="btn sec" id="btn-salva-solo" hidden>💾 Salva senza stampare</button>
+        <button class="btn sec" id="btn-salva-solo" title="Assegna il numero e salva il DDT senza mandarlo alla stampante">💾 Salva senza stampare</button>
         <span class="hint" id="hint-stampa"></span>
       </div>
       <div id="sf-ledger" hidden style="margin-top:34px">
@@ -534,8 +534,8 @@ function paintEditUI(){
   $('edit-banner').hidden = !ed; $('edit-banner').style.display = ed ? 'flex' : 'none';
   if (ed) $('edit-titolo').textContent = `✏️ Stai modificando il DDT n. ${DOC.edit_num} del ${fmtData(DOC.edit_data)}`;
   $('btn-stampa').textContent = ed ? '🖨️ SALVA MODIFICHE E STAMPA' : '🖨️ SALVA E STAMPA';
-  $('btn-salva-solo').hidden = !ed; $('btn-bozza').hidden = ed;
-  for (const id of ['sel-dest', 'btn-nuovo-dest', 'btn-svuota']) $(id).disabled = ed;
+  $('btn-bozza').hidden = ed;
+  for (const id of ['btn-nuovo-dest', 'btn-svuota']) $(id).disabled = ed;
   const sf = !!(DOC && DOC.sfr);
   $('cmp-title').textContent = sf ? 'Sfridi · ' + SFR[DOC.sfr].nome : 'Nuovo DDT';
   $('cmp-sub').textContent = sf ? 'Descrizione automatica. Nei kg puoi scrivere somme, es. =136+130. Il registro bancali e consegne si aggiorna da solo.' : 'Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.';
@@ -554,6 +554,12 @@ function paintDestSelect(){
 }
 function applicaDestinatario(id){
   const r = DEST.find(x => x.id === id);
+  if (DOC && DOC.edit_id) {   // in modifica: cambia solo destinatario/destinazione, il resto del DDT resta com'è
+    if (!r) { DOC.dest_id = ''; paintDestSelect(); return; }
+    const n = docDaDest(r);
+    Object.assign(DOC, { dest_id: r.id, ced: n.ced, dest: n.dest, causale: n.causale || DOC.causale, cod_scarico: n.cod_scarico, porto: n.porto || DOC.porto, vettore: n.vettore, a_mezzo: n.a_mezzo, annotazioni: n.annotazioni });
+    paintSheet(); paintDestSelect(); toast('Destinatario cambiato: ricontrolla i dati e salva'); return;
+  }
   DOC = r ? docDaDest(r) : nuovoDoc();
   paintSheet(); paintDestSelect();
 }
@@ -770,7 +776,7 @@ async function salvaEStampa(stampa){
   // salvato: ora la stampa (un eventuale errore qui NON significa che il DDT non sia stato salvato)
   try {
     if (stampa !== false) { stampaBolla(data, data.copie); toast(`DDT n. ${data.numero} ${editing ? 'modificato, salvato' : 'salvato'} e inviato alla stampante (${data.copie} ${data.copie === 1 ? 'copia' : 'copie'})`); }
-    else toast(`DDT n. ${data.numero} modificato e salvato`);
+    else toast(`DDT n. ${data.numero} ${editing ? 'modificato e salvato' : 'salvato (non stampato): per stamparlo usa «Ristampa» nel registro'}`);
   } catch (e) {
     toast(`DDT n. ${data.numero} SALVATO, ma la stampa non è partita (${e.message || e}). Usa «Ristampa» nel registro.`, true);
   }
