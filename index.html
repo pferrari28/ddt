@@ -841,7 +841,7 @@ function paintRegistro(){
   const colli = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.colli) || 0), 0);
   $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th class="n">N.</th><th class="n">Data</th><th>Destinatario</th><th>Causale</th><th>Descrizione</th><th>Lotti</th><th class="n">Kg</th><th class="n">Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
     lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td>${esc(descrDi(b))}</td><td>${esc(lottiDi(b))}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
-      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button></td></tr>`).join('')
+      <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button>${ME && ME.admin ? ` <button class="btn small danger" data-a="elim" data-id="${b.id}" title="Elimina definitivamente (solo Paolo)">Elimina</button>` : ''}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="6">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
     : '<div class="empty">Nessun DDT per questi filtri.</div>';
 }
@@ -877,6 +877,16 @@ $('rg-wrap').addEventListener('click', async ev => {
     Object.assign(DOC, clone(resto), { data: oggiISO() });
     const righe = Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }); DOC.righe = clone(righe);
     go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); toast('Bolla copiata in un nuovo DDT: controlla e premi «Salva e stampa».');
+  } else if (b.dataset.a === 'elim') {
+    if (!(ME && ME.admin)) return;
+    openModal(`<h2>Eliminare definitivamente il DDT n. ${row.numero}?</h2><p style="line-height:1.5">${esc(row.dest_nome || '')} · ${fmtData(row.data)}<br>Il DDT sparisce dal registro, da «Merce uscita» e dal registro sfridi, e <b>non si può recuperare</b>. Se è l'ultimo numero dell'anno, il numero torna disponibile.</p><div class="acts"><button class="btn sec" id="el-no">Annulla</button><button class="btn danger" id="el-si">Elimina definitivamente</button></div>`);
+    $('el-no').onclick = closeModal;
+    $('el-si').onclick = async () => {
+      const { error } = await sb.rpc('ddt_elimina', { p_id: row.id });
+      closeModal(); if (error) { toast('Non eliminato: ' + error.message, true); return; }
+      const c = await sb.from('ddt_contatori').select('*'); if (!c.error) { CONT = {}; (c.data || []).forEach(x => CONT[x.anno] = x.ultimo); }
+      await caricaBolle(); await caricaSfridi(); paintRegistro(); paintNextNum(); toast(`DDT n. ${row.numero} eliminato`);
+    };
   } else if (b.dataset.a === 'ann') {
     const annulla = !row.annullata;
     openModal(`<h2>${annulla ? 'Annullare' : 'Ripristinare'} il DDT n. ${row.numero}?</h2><p style="line-height:1.5">${annulla ? 'Il numero resta nel registro come ANNULLATO (la numerazione non si riutilizza) e non viene conteggiato nei totali.' : 'Il DDT torna valido.'}</p><div class="acts"><button class="btn sec" id="an-no">No</button><button class="btn ${annulla ? 'danger' : ''}" id="an-si">${annulla ? 'Annulla il DDT' : 'Ripristina'}</button></div>`);

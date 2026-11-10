@@ -218,6 +218,24 @@ begin
   update public.ddt_sfridi set annullata = p_annulla where bolla_id = p_id;
 end $$;
 
+-- Solo Paolo: elimina DEFINITIVAMENTE un DDT (es. prove fatte prima della consegna).
+-- Toglie anche la riga collegata nel registro sfridi. Se era l'ultimo numero emesso
+-- dell'anno, il contatore torna indietro di uno (il numero si riutilizza).
+create or replace function public.ddt_elimina(p_id uuid)
+returns void language plpgsql security definer set search_path = public as
+$$
+declare b record;
+begin
+  if not public.ddt_is_admin() then raise exception 'Solo l''amministratore può eliminare un DDT'; end if;
+  select anno, numero into b from public.ddt_bolle where id = p_id;
+  if not found then return; end if;
+  delete from public.ddt_sfridi where bolla_id = p_id;
+  delete from public.ddt_bolle where id = p_id;
+  update public.ddt_contatori
+     set ultimo = greatest(b.numero - 1, coalesce((select max(numero) from public.ddt_bolle where anno = b.anno), 0))
+   where anno = b.anno and ultimo = b.numero;
+end $$;
+
 -- Solo Paolo: decide da quale numero si riparte (es. l'ultimo DDT cartaceo
 -- dell'anno era il 125 → imposta 125: il prossimo sarà il 126).
 create or replace function public.ddt_imposta_ultimo(p_anno int, p_ultimo int)
@@ -243,4 +261,4 @@ end $$;
 
 grant execute on function public.ddt_ok(), public.ddt_is_admin(),
   public.ddt_emetti(jsonb), public.ddt_modifica(uuid, jsonb), public.ddt_annulla(uuid, boolean),
-  public.ddt_imposta_ultimo(int, int), public.ddt_imposta_copie(int) to authenticated;
+  public.ddt_imposta_ultimo(int, int), public.ddt_imposta_copie(int), public.ddt_elimina(uuid) to authenticated;
