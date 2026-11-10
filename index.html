@@ -103,7 +103,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
 .sheetwrap{overflow:auto;padding-bottom:10px;}
 .actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
 
-.sheet{border-collapse:collapse;table-layout:fixed;width:190mm;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;color:#000;background:#fff;}
+.sheet{border-collapse:collapse;border:1pt solid #000;outline:.7pt solid #000;outline-offset:0;table-layout:fixed;width:190mm;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;color:#000;background:#fff;}
 .sheet td{border:.7pt solid #000;padding:0 3px;overflow:hidden;white-space:nowrap;vertical-align:middle;line-height:1.1;text-align:left;}
 .sheet td.lab{background:#E7E6E6;text-align:center;font-size:8pt;}
 .sheet td.lab.m{font-size:9pt;}
@@ -532,7 +532,7 @@ function sheetHTML(d, mode, ctx){
   h += H(12, `<td colspan="3" class="c gt">${T('vettore.0', 'c', '', 'dl-vett')}</td><td rowspan="2" class="lab" style="font-size:9pt">DATA</td><td rowspan="2" class="lab" style="font-size:9pt">ORA</td>`);
   h += H(14.1, `<td colspan="3" class="c gm">${T('vettore.1', 'c')}</td>`);
   h += H(14.1, `<td colspan="3" class="c gb">${T('vettore.2', 'c')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
-  h += H(14.1, `<td colspan="5" class="lab" style="font-size:9.5pt">Consegna o inizio trasporto a mezzo</td><td class="x" style="font-size:9pt">${am === 'cedente' ? 'X' : ''}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${am === 'cessionario' ? 'X' : ''}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${am === 'vettore' ? 'X' : ''}</td><td class="lab" style="background:#fff">vettore</td>`);
+  h += H(14.1, `<td colspan="5" class="lab" style="font-size:9.5pt">Consegna o inizio trasporto a mezzo</td><td class="x" style="font-size:9pt" data-mir="cedente">${am === 'cedente' ? 'X' : ''}</td><td class="lab" style="background:#fff">cedente</td><td class="x" data-mir="cessionario">${am === 'cessionario' ? 'X' : ''}</td><td class="lab" style="background:#fff">cessionario</td><td class="x" data-mir="vettore">${am === 'vettore' ? 'X' : ''}</td><td class="lab" style="background:#fff">vettore</td>`);
   h += H(14.1, `<td colspan="5" class="lab">ANNOTAZIONI - VARIAZIONI</td><td colspan="6" class="nob"></td>`);
   h += H(14.1, `<td colspan="2" class="lab" style="font-size:9.5pt;text-align:center">TARGA AUTOMEZZO</td><td colspan="4" class="c">${T('targa', 'c b', '', 'dl-targhe')}</td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CONDUCENTE</td>`);
   h += H(14.1, `<td colspan="6">${T('annotazioni', '')}</td><td colspan="5" rowspan="1"></td>`);
@@ -636,6 +636,7 @@ SHEET.addEventListener('input', ev => {
     if (k === 'targa') { const t = TARG.find(x => x.targa.toUpperCase() === el.value.trim().toUpperCase()); const v = t && t.vettore && VETT.find(x => x.nome === t.vettore); if (v && (daElenco || !String(DOC.vettore[0] || '').trim())) compila(v); }
     if (k.startsWith('vettore.') && el.value.trim()) DOC.a_mezzo = 'vettore';
     SHEET.querySelectorAll('[data-chk^="a_mezzo:"]').forEach(b => { b.textContent = b.dataset.chk === 'a_mezzo:' + DOC.a_mezzo ? 'X' : ''; });
+    SHEET.querySelectorAll('[data-mir]').forEach(c => { c.textContent = c.dataset.mir === DOC.a_mezzo ? 'X' : ''; });
   }
   setp(DOC, k, el.value);
   if (k === 'data') paintNextNum();
@@ -929,11 +930,11 @@ function vediBolla(row){
   };
 }
 async function tabellaInJpeg(tab, scala){
-  const w = Math.ceil(tab.offsetWidth), h = Math.ceil(tab.offsetHeight);
+  const P = 4, w = Math.ceil(tab.offsetWidth) + 2 * P, h = Math.ceil(tab.offsetHeight) + 2 * P;   // margine bianco: il bordo esterno non viene tagliato
   let css = ''; for (const sh of document.styleSheets) { try { for (const r of sh.cssRules) if (r.type === 1 && /\.sheet|^table|^td|^th|^\*/.test(r.selectorText || '')) css += r.cssText + '\n'; } catch (e) {} }
   const box = document.createElement('div'); box.appendChild(tab.cloneNode(true));
   const st = document.createElement('style'); st.textContent = css; box.prepend(st);
-  box.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml'); box.style.cssText = 'background:#fff;width:' + w + 'px';
+  box.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml'); box.style.cssText = 'background:#fff;padding:' + P + 'px;box-sizing:border-box;width:' + w + 'px';
   const xml = new XMLSerializer().serializeToString(box);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${xml}</foreignObject></svg>`;
   const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
