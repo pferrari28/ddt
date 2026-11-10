@@ -743,7 +743,15 @@ $('rb-wrap').addEventListener('click', async ev => {
 // ---------- SALVA E STAMPA ----------
 function dicDi(d){ const r = DEST.find(x => x.id === d.dest_id); return dicRiflusse((r && r.dati.diciture) || []); }
 function haMerce(d){ if (d.sfr) return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim()); const dic = dicDi(d); return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim() || (String(r.desc).trim() && !dic.includes(String(r.desc).trim()))); }
-function righeUtili(d){ return d.righe.filter(r => rigaUsata(d, r)).map(r => d.sfr ? { ...r, desc: SFR[d.sfr].desc } : r); }
+function righeUtili(d){
+  const u = d.righe.filter(r => rigaUsata(d, r)).map(r => d.sfr ? { ...r, desc: SFR[d.sfr].desc } : r);
+  if (d.sfr) return u;
+  const dic = dicDi(d), f = x => String(x ?? '').trim();
+  const coda = u.filter(r => !f(r.kg) && !f(r.lotto) && dic.includes(f(r.desc))), merce = u.filter(r => !coda.includes(r));
+  if (!coda.length) return u;
+  while (merce.length + coda.length < N_RIGHE) merce.push({ kg: '', desc: '', lotto: '' });   // le diciture restano sempre sulle ultime righe
+  return merce.concat(coda);
+}
 async function salvaEStampa(stampa){
   if (BUSY) return;
   const d = DOC;
