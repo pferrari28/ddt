@@ -326,6 +326,7 @@ function setp(o, p, v){ const ks = p.split('.'); const last = ks.pop(); const t 
 const clone = o => JSON.parse(JSON.stringify(o));
 
 // ---------- il documento ----------
+function listaAnnot(r){ const d = (r && r.dati) || {}; return (d.annotazioni_lista || (d.annotazioni ? [d.annotazioni] : [])).map(x => String(x).trim()).filter(Boolean); }
 function nuovoDoc(dati){
   dati = dati || {};
   const d = {
@@ -334,14 +335,18 @@ function nuovoDoc(dati){
     causale: dati.causale || '', ord_num: '', ord_data: '', cod_scarico: '', in_conto: false, a_saldo: false,
     righe: Array.from({ length: N_RIGHE }, () => ({ kg: '', desc: '', lotto: '' })),
     aspetto: dati.aspetto || 'A VISTA', colli: '', peso: '', peso_manuale: false, porto: dati.porto || '', totale: '',
-    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: '', annotazioni: dati.annotazioni || '', bancali: '',
+    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: '', annotazioni: listaAnnot({ dati })[dati.annot_idx || 0] || '', annot_idx: dati.annot_idx || 0, bancali: '',
     copie: dati.copie || CFG.copie || 1,
   };
   return d;
 }
 function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = numKg(r.kg); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
 function pesoNum(d){ if (d.peso_manuale) { const n = numKg(d.peso); return n === null || Number.isNaN(n) ? null : n; } return sommaKg(d); }
-function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni: d.annotazioni, copie: d.copie_rub || null }; }
+function listaPer(d){                                  // annotazioni già in rubrica + quella scritta ora (se nuova)
+  const l = listaAnnot(DEST.find(x => x.id === d.dest_id)), a = String(d.annotazioni || '').trim();
+  if (a && !l.includes(a)) l.push(a); return l;
+}
+function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni_lista: listaPer(d), copie: d.copie_rub || null }; }
 
 // ---------- il modulo (identico a schermo e in stampa) ----------
 // mode: 'edit' (campi compilabili) | 'print' (solo testo)
@@ -401,13 +406,23 @@ function ricalcolaPeso(){
   if (!DOC.peso_manuale) { el.value = kgTxt(sommaKg(DOC)); el.classList.add('auto'); } else el.classList.remove('auto');
 }
 function paintDestSelect(){
-  const cur = DOC ? DOC.dest_id : '';
-  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + DEST.map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
-  $('sel-dest').value = cur && DEST.some(x => x.id === cur) ? cur : '';
+  // un destinatario con più annotazioni compare una volta per ogni annotazione: «Ditta — annotazione»
+  const opts = [];
+  for (const x of DEST) {
+    const l = listaAnnot(x);
+    if (!l.length) opts.push(`<option value="${x.id}">${esc(x.nome)}</option>`);
+    else l.forEach((a, i) => opts.push(`<option value="${x.id}|${i}">${esc(x.nome)} — ${esc(a)}</option>`));
+  }
+  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + opts.join('');
+  const r = DOC && DEST.find(x => x.id === DOC.dest_id);
+  if (!r) { $('sel-dest').value = ''; return; }
+  const l = listaAnnot(r), k = l.length ? l.indexOf(DOC.annotazioni) : -1;
+  $('sel-dest').value = l.length ? r.id + '|' + (k >= 0 ? k : (DOC.annot_idx || 0)) : r.id;
 }
-function applicaDestinatario(id){
+function applicaDestinatario(val, idx){
+  let id = String(val || ''); if (id.includes('|')) { idx = Number(id.split('|')[1]); id = id.split('|')[0]; }
   const r = DEST.find(x => x.id === id);
-  DOC = r ? nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }) : nuovoDoc();
+  DOC = r ? nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie, annotazioni_lista: listaAnnot(r), annot_idx: idx || 0 }) : nuovoDoc();
   if (r) DOC.copie_rub = r.dati.copie || null;
   paintSheet(); paintDestSelect();
 }
@@ -468,14 +483,14 @@ function formDestHTML(r){
   </div>
   <label class="l">Vettore abituale (facoltativo)</label>
   ${L('rd-vet', 0, (d.vettore || [])[0])}${L('rd-vet', 1, (d.vettore || [])[1])}
-  <label class="l">Annotazioni abituali (facoltativo)</label><input class="f" id="rd-annot" value="${esc(d.annotazioni || '')}">
+  <label class="l">Annotazioni abituali (facoltativo) — una per riga, se il destinatario ha più destinazioni</label><textarea class="f" id="rd-annot" rows="3" placeholder="es. Consegna presso stabilimento di Rovato">${esc(listaAnnot(r).join('\n'))}</textarea>
   <div class="msg err" id="rd-err"></div>
   <div class="acts"><button class="btn sec" id="rd-annulla">Annulla</button><button class="btn" id="rd-salva">Salva destinatario</button></div>`;
 }
 function leggiFormDest(){
   const g = id => $(id).value.trim();
   return { ced: [g('rd-ced0'), g('rd-ced1'), g('rd-ced2')], dest: [g('rd-dest0'), g('rd-dest1'), g('rd-dest2')], causale: g('rd-causale'), a_mezzo: $('rd-amezzo').value,
-    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), copie: parseInt($('rd-copie').value, 10) || null };
+    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni_lista: $('rd-annot').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || null };
 }
 function apriFormDest(id, preset, dopo){
   const r = id ? DEST.find(x => x.id === id) : (preset ? { dati: preset } : null);
@@ -557,14 +572,14 @@ async function salvaEStampa(){
   try {
     const ritiro_data = oggiISO(), ritiro_ora = oraHHMM();
     const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
-    delete payload.copie_rub;
+    delete payload.copie_rub; delete payload.annot_idx;
     const { data, error } = await sb.rpc('ddt_emetti', { p: payload });
     if (error) throw error;
     BOLLE.unshift(data); if ((CONT[data.anno] || 0) < data.numero) CONT[data.anno] = data.numero;
     stampaBolla(data, data.copie);
     toast(`DDT n. ${data.numero} salvato e inviato alla stampante (${data.copie} ${data.copie === 1 ? 'copia' : 'copie'})`);
     // modulo pulito per la bolla successiva (stesso destinatario)
-    applicaDestinatario(d.dest_id || ''); paintNextNum(); paintRegistro();
+    applicaDestinatario(d.dest_id || '', d.annot_idx); paintNextNum(); paintRegistro();
   } catch (e) {
     toast('DDT NON salvato (nessun numero consumato): ' + (e.message || e), true);
   } finally { BUSY = false; $('btn-stampa').disabled = false; $('btn-stampa').textContent = '🖨️ SALVA E STAMPA'; }
