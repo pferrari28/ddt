@@ -326,7 +326,7 @@ function setp(o, p, v){ const ks = p.split('.'); const last = ks.pop(); const t 
 const clone = o => JSON.parse(JSON.stringify(o));
 
 // ---------- il documento ----------
-function listaAnnot(r){ const d = (r && r.dati) || {}; return (d.annotazioni_lista || (d.annotazioni ? [d.annotazioni] : [])).map(x => String(x).trim()).filter(Boolean); }
+function annotDi(r){ const d = (r && r.dati) || {}; return String(d.annotazioni || (d.annotazioni_lista || [])[0] || '').trim(); }
 function nuovoDoc(dati){
   dati = dati || {};
   const d = {
@@ -335,18 +335,16 @@ function nuovoDoc(dati){
     causale: dati.causale || '', ord_num: '', ord_data: '', cod_scarico: '', in_conto: false, a_saldo: false,
     righe: Array.from({ length: N_RIGHE }, () => ({ kg: '', desc: '', lotto: '' })),
     aspetto: dati.aspetto || 'A VISTA', colli: '', peso: '', peso_manuale: false, porto: dati.porto || '', totale: '',
-    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: '', annotazioni: listaAnnot({ dati })[dati.annot_idx || 0] || '', annot_idx: dati.annot_idx || 0, bancali: '',
+    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: '', annotazioni: annotDi({ dati }), bancali: '',
     copie: dati.copie || CFG.copie || 1,
   };
+  const dic = (dati.diciture || []).map(x => String(x).trim()).filter(Boolean).slice(0, N_RIGHE);
+  dic.forEach((t, i) => { d.righe[N_RIGHE - dic.length + i].desc = t; });
   return d;
 }
 function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = numKg(r.kg); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
 function pesoNum(d){ if (d.peso_manuale) { const n = numKg(d.peso); return n === null || Number.isNaN(n) ? null : n; } return sommaKg(d); }
-function listaPer(d){                                  // annotazioni già in rubrica + quella scritta ora (se nuova)
-  const l = listaAnnot(DEST.find(x => x.id === d.dest_id)), a = String(d.annotazioni || '').trim();
-  if (a && !l.includes(a)) l.push(a); return l;
-}
-function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni_lista: listaPer(d), copie: d.copie_rub || null }; }
+function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni: String(d.annotazioni || '').trim(), copie: d.copie_rub || null }; }
 
 // ---------- il modulo (identico a schermo e in stampa) ----------
 // mode: 'edit' (campi compilabili) | 'print' (solo testo)
@@ -380,7 +378,7 @@ function sheetHTML(d, mode, ctx){
   h += H(15.95, `<td colspan="4" class="lab">CAUSALE DEL TRASPORTO</td><td class="lab">VS. ORDINE N.</td><td></td><td class="lab">DATA</td><td colspan="2" class="lab">Cod. scarico</td><td class="x">${X(d.in_conto, 'in_conto')}</td><td class="lab">IN CONTO</td>`);
   h += H(15.95, `<td colspan="4" class="c b">${T('causale', 'c b')}</td><td class="c">${T('ord_num', 'c')}</td><td></td><td class="c">${T('ord_data', 'c')}</td><td colspan="2" class="c">${T('cod_scarico', 'c')}</td><td class="x">${X(d.a_saldo, 'a_saldo')}</td><td class="lab">A SALDO</td>`);
   h += H(15.95, `<td colspan="2" class="lab m" style="font-size:9.5pt">QUANTITÀ (IN KG)</td><td colspan="7" class="lab m" style="font-size:9.5pt">DESCRIZIONE DEI BENI</td><td colspan="2" class="lab m" style="font-size:9.5pt">LOTTO</td>`);
-  for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7">${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
+  for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7"${String(d.righe[i].desc).length > 52 ? ' style="font-size:9pt"' : ''}>${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
   h += H(14.1, `<td colspan="3" class="lab">ASPETTO ESTERIORE DEI BENI</td><td class="lab">N. COLLI</td><td colspan="2" class="lab">PESO KG.</td><td colspan="2" class="lab">PORTO</td><td rowspan="2" class="lab" style="font-size:10pt">TOTALE €</td><td colspan="2" rowspan="2" class="c">${T('totale', 'c')}</td>`);
   h += H(18.95, `<td colspan="3" class="c b" style="font-size:11pt">${T('aspetto', 'c b')}</td><td class="c b">${T('colli', 'c b')}</td><td colspan="2" class="c b">${E ? `<input data-k="peso" data-kg="1" data-peso="1" class="${d.peso_manuale ? '' : 'auto'}" value="${esc(pesoShown)}" inputmode="decimal" style="text-align:center;font-weight:700">` : esc(pesoShown)}</td><td colspan="2" class="c">${T('porto', 'c')}</td>`);
   h += H(12, `<td colspan="3" class="lab" style="font-size:8pt">VETTORE: ditta, domicilio o residenza</td><td colspan="2" class="lab" style="font-size:7pt">DATA E ORA DEL RITIRO</td><td colspan="6" rowspan="4"></td>`);
@@ -406,23 +404,12 @@ function ricalcolaPeso(){
   if (!DOC.peso_manuale) { el.value = kgTxt(sommaKg(DOC)); el.classList.add('auto'); } else el.classList.remove('auto');
 }
 function paintDestSelect(){
-  // un destinatario con più annotazioni compare una volta per ogni annotazione: «Ditta — annotazione»
-  const opts = [];
-  for (const x of DEST) {
-    const l = listaAnnot(x);
-    if (!l.length) opts.push(`<option value="${x.id}">${esc(x.nome)}</option>`);
-    else l.forEach((a, i) => opts.push(`<option value="${x.id}|${i}">${esc(x.nome)} — ${esc(a)}</option>`));
-  }
-  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + opts.join('');
-  const r = DOC && DEST.find(x => x.id === DOC.dest_id);
-  if (!r) { $('sel-dest').value = ''; return; }
-  const l = listaAnnot(r), k = l.length ? l.indexOf(DOC.annotazioni) : -1;
-  $('sel-dest').value = l.length ? r.id + '|' + (k >= 0 ? k : (DOC.annot_idx || 0)) : r.id;
+  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + DEST.map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
+  $('sel-dest').value = DOC && DOC.dest_id && DEST.some(x => x.id === DOC.dest_id) ? DOC.dest_id : '';
 }
-function applicaDestinatario(val, idx){
-  let id = String(val || ''); if (id.includes('|')) { idx = Number(id.split('|')[1]); id = id.split('|')[0]; }
+function applicaDestinatario(id){
   const r = DEST.find(x => x.id === id);
-  DOC = r ? nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie, annotazioni_lista: listaAnnot(r), annot_idx: idx || 0 }) : nuovoDoc();
+  DOC = r ? nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }) : nuovoDoc();
   if (r) DOC.copie_rub = r.dati.copie || null;
   paintSheet(); paintDestSelect();
 }
@@ -467,7 +454,9 @@ SHEET.addEventListener('click', ev => {
 function formDestHTML(r){
   const d = (r && r.dati) || {};
   const L = (id, i, v) => `<input class="f" id="${id}${i}" value="${esc(v || '')}" style="margin-bottom:6px">`;
-  return `<h2>${r ? 'Modifica destinatario' : 'Nuovo destinatario'}</h2>
+  return `<h2>${r && r.id ? 'Modifica destinatario' : 'Nuovo destinatario'}</h2>
+  <label class="l" style="margin-top:0">Nome nell'elenco (come lo vedi nel menu «Destinatario»)</label>
+  <input class="f" id="rd-nome" value="${esc((r && r.nome) || '')}" placeholder="es. SFRIDI VIRGILIO">
   <div class="row2">
     <div><label class="l">Cessionario (ditta, indirizzo, CAP città)</label>${L('rd-ced', 0, (d.ced || [])[0])}${L('rd-ced', 1, (d.ced || [])[1])}${L('rd-ced', 2, (d.ced || [])[2])}</div>
     <div><label class="l">Luogo di destinazione (vuoto = «Idem»)</label>${L('rd-dest', 0, (d.dest || [])[0])}${L('rd-dest', 1, (d.dest || [])[1])}${L('rd-dest', 2, (d.dest || [])[2])}</div>
@@ -483,29 +472,33 @@ function formDestHTML(r){
   </div>
   <label class="l">Vettore abituale (facoltativo)</label>
   ${L('rd-vet', 0, (d.vettore || [])[0])}${L('rd-vet', 1, (d.vettore || [])[1])}
-  <label class="l">Annotazioni abituali (facoltativo) — una per riga, se il destinatario ha più destinazioni</label><textarea class="f" id="rd-annot" rows="3" placeholder="es. Consegna presso stabilimento di Rovato">${esc(listaAnnot(r).join('\n'))}</textarea>
+  <label class="l">Annotazioni abituali (facoltativo) — si scrivono nella riga «Annotazioni» del DDT</label><input class="f" id="rd-annot" value="${esc(annotDi(r))}">
+  <label class="l">Dicitura fissa nelle ultime righe della descrizione (facoltativo, una riga per riga)</label>
+  <textarea class="f" id="rd-dic" rows="2" placeholder="es. SFRIDI DI PARMIGIANO-REGGIANO DESTINATI AD ULTERIORE LAVORAZIONE">${esc(((r && r.dati.diciture) || []).join('\n'))}</textarea>
   <div class="msg err" id="rd-err"></div>
   <div class="acts"><button class="btn sec" id="rd-annulla">Annulla</button><button class="btn" id="rd-salva">Salva destinatario</button></div>`;
 }
 function leggiFormDest(){
   const g = id => $(id).value.trim();
   return { ced: [g('rd-ced0'), g('rd-ced1'), g('rd-ced2')], dest: [g('rd-dest0'), g('rd-dest1'), g('rd-dest2')], causale: g('rd-causale'), a_mezzo: $('rd-amezzo').value,
-    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni_lista: $('rd-annot').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || null };
+    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), diciture: $('rd-dic').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || null };
 }
 function apriFormDest(id, preset, dopo){
-  const r = id ? DEST.find(x => x.id === id) : (preset ? { dati: preset } : null);
+  const r = id ? DEST.find(x => x.id === id) : (preset ? { nome: preset.ced && preset.ced[0] || '', dati: preset } : null);
   openModal(formDestHTML(r), true);
   $('rd-amezzo').value = (r && r.dati.a_mezzo) || 'vettore';
   $('rd-annulla').onclick = closeModal;
   $('rd-salva').onclick = async () => {
     const dati = leggiFormDest();
+    const nome = $('rd-nome').value.trim();
+    if (!nome) { $('rd-err').textContent = 'Scrivi il nome con cui vuoi vedere il destinatario nell\'elenco.'; return; }
     if (!dati.ced[0]) { $('rd-err').textContent = 'Scrivi almeno il nome della ditta (prima riga del cessionario).'; return; }
-    try { const saved = await salvaDest(id, dati); closeModal(); toast('Destinatario salvato'); if (dopo) dopo(saved); }
+    try { const saved = await salvaDest(id, dati, nome); closeModal(); toast('Destinatario salvato'); if (dopo) dopo(saved); }
     catch (e) { $('rd-err').textContent = 'Non salvato: ' + (e.message || e); }
   };
 }
-async function salvaDest(id, dati){
-  const nome = dati.ced[0];
+async function salvaDest(id, dati, nome){
+  nome = (nome || dati.ced[0] || '').trim();
   let res;
   if (id) res = await sb.from('ddt_destinatari').update({ nome, dati, aggiornato_il: new Date().toISOString() }).eq('id', id).select().single();
   else res = await sb.from('ddt_destinatari').insert({ nome, dati }).select().single();
@@ -518,17 +511,30 @@ async function salvaDest(id, dati){
 }
 $('btn-salva-rub').addEventListener('click', async () => {
   if (!String(DOC.ced[0]).trim()) { toast('Scrivi prima il nome del destinatario nel modulo.', true); return; }
+  const esist = DEST.find(x => x.id === DOC.dest_id);
   try {
-    const saved = await salvaDest(DOC.dest_id || null, datiRubrica(DOC));
+    const nome = esist ? esist.nome : await chiediNome(DOC.ced[0]);
+    if (!nome) return;
+    const saved = await salvaDest(esist ? esist.id : null, { ...(esist ? esist.dati : {}), ...datiRubrica(DOC) }, nome);
     DOC.dest_id = saved.id; paintDestSelect(); toast('Destinatario salvato in rubrica');
   } catch (e) { toast('Non salvato: ' + (e.message || e), true); }
 });
+function chiediNome(def){
+  return new Promise(res => {
+    openModal(`<h2>Nome nell'elenco</h2><p class="hint" style="margin:0 0 8px">Con quale nome vuoi vedere questo destinatario nel menu? (utile per distinguere ditte con più destinazioni)</p>
+      <input class="f" id="cn-nome" value="${esc(def || '')}"><div class="msg err" id="cn-err"></div>
+      <div class="acts"><button class="btn sec" id="cn-no">Annulla</button><button class="btn" id="cn-si">Salva</button></div>`);
+    const ok = () => { const v = $('cn-nome').value.trim(); if (!v) { $('cn-err').textContent = 'Scrivi un nome.'; return; } closeModal(); res(v); };
+    $('cn-no').onclick = () => { closeModal(); res(null); }; $('cn-si').onclick = ok;
+    $('cn-nome').addEventListener('keydown', e => { if (e.key === 'Enter') ok(); }); $('cn-nome').focus(); $('cn-nome').select();
+  });
+}
 $('btn-add-dest').addEventListener('click', () => apriFormDest(null));
 function paintRubrica(){
   const q = $('rb-q').value.trim().toLowerCase();
   const lista = DEST.filter(r => !q || (r.nome + ' ' + (r.dati.ced || []).join(' ') + ' ' + (r.dati.dest || []).join(' ')).toLowerCase().includes(q));
-  $('rb-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>Destinatario</th><th>Indirizzo</th><th>Luogo di destinazione</th><th>Causale</th><th>Copie</th><th></th></tr></thead><tbody>${
-    lista.map(r => `<tr><td><b>${esc(r.nome)}</b></td><td>${esc((r.dati.ced || []).slice(1).filter(Boolean).join(' · '))}</td><td>${esc((r.dati.dest || []).filter(Boolean).join(' · ') || 'Idem')}</td><td>${esc(r.dati.causale || '')}</td><td>${r.dati.copie || '—'}</td>
+  $('rb-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th>Nome nell'elenco</th><th>Cessionario</th><th>Luogo di destinazione</th><th>Causale</th><th>Copie</th><th></th></tr></thead><tbody>${
+    lista.map(r => `<tr><td><b>${esc(r.nome)}</b></td><td>${esc((r.dati.ced || []).filter(Boolean).join(' · '))}</td><td>${esc((r.dati.dest || []).filter(Boolean).join(' · ') || 'Idem')}</td><td>${esc(r.dati.causale || '')}</td><td>${r.dati.copie || '—'}</td>
       <td class="act"><button class="btn small" data-a="usa" data-id="${r.id}">Usa nel DDT</button> <button class="btn small sec" data-a="mod" data-id="${r.id}">Modifica</button> <button class="btn small sec" data-a="del" data-id="${r.id}">Elimina</button></td></tr>`).join('')}</tbody></table>`
     : '<div class="empty">Nessun destinatario. Premi «Nuovo destinatario» per aggiungerne uno.</div>';
 }
@@ -551,35 +557,37 @@ $('rb-wrap').addEventListener('click', async ev => {
 });
 
 // ---------- SALVA E STAMPA ----------
+function dicDi(d){ const r = DEST.find(x => x.id === d.dest_id); return ((r && r.dati.diciture) || []).map(x => String(x).trim()); }
+function haMerce(d){ const dic = dicDi(d); return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim() || (String(r.desc).trim() && !dic.includes(String(r.desc).trim()))); }
 function righeUtili(d){ return d.righe.filter(r => String(r.kg).trim() || String(r.desc).trim() || String(r.lotto).trim()); }
 async function salvaEStampa(){
   if (BUSY) return;
   const d = DOC;
   if (!String(d.ced[0]).trim()) { toast('Manca il destinatario: scegli dall\'elenco o scrivilo nel modulo.', true); return; }
-  if (!righeUtili(d).length) { toast('Il DDT non ha nessuna riga: scrivi almeno una quantità o una descrizione.', true); return; }
+  if (!haMerce(d)) { toast('Il DDT non ha nessuna riga: scrivi almeno una quantità o una descrizione.', true); return; }
   for (const r of d.righe) { const n = numKg(r.kg); if (Number.isNaN(n)) { toast('C\'è una quantità non valida: «' + r.kg + '»', true); return; } }
   // destinatario nuovo scritto a mano e non ancora in rubrica
-  if (!d.dest_id && !DEST.some(x => x.nome.trim().toLowerCase() === String(d.ced[0]).trim().toLowerCase())) {
+  if (!d.dest_id) {
     const scelta = await new Promise(res => {
       openModal(`<h2>Destinatario nuovo</h2><p style="line-height:1.5">«<b>${esc(d.ced[0])}</b>» non è ancora in rubrica. Lo salvo, così la prossima volta lo trovi nell'elenco?</p>
         <div class="acts"><button class="btn sec" id="q-ann">Annulla</button><button class="btn sec" id="q-no">Stampa senza salvare</button><button class="btn" id="q-si">Salva in rubrica e stampa</button></div>`);
       $('q-ann').onclick = () => { closeModal(); res('ann'); }; $('q-no').onclick = () => { closeModal(); res('no'); }; $('q-si').onclick = () => { closeModal(); res('si'); };
     });
     if (scelta === 'ann') return;
-    if (scelta === 'si') { try { const s = await salvaDest(null, datiRubrica(d)); d.dest_id = s.id; paintDestSelect(); } catch (e) { toast('Rubrica non salvata: ' + (e.message || e), true); return; } }
+    if (scelta === 'si') { try { const nome = await chiediNome(d.ced[0]); if (!nome) return; const s = await salvaDest(null, datiRubrica(d), nome); d.dest_id = s.id; paintDestSelect(); } catch (e) { toast('Rubrica non salvata: ' + (e.message || e), true); return; } }
   }
   BUSY = true; $('btn-stampa').disabled = true; $('btn-stampa').textContent = '⏳ Salvataggio…';
   try {
     const ritiro_data = oggiISO(), ritiro_ora = oraHHMM();
     const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
-    delete payload.copie_rub; delete payload.annot_idx;
+    delete payload.copie_rub;
     const { data, error } = await sb.rpc('ddt_emetti', { p: payload });
     if (error) throw error;
     BOLLE.unshift(data); if ((CONT[data.anno] || 0) < data.numero) CONT[data.anno] = data.numero;
     stampaBolla(data, data.copie);
     toast(`DDT n. ${data.numero} salvato e inviato alla stampante (${data.copie} ${data.copie === 1 ? 'copia' : 'copie'})`);
     // modulo pulito per la bolla successiva (stesso destinatario)
-    applicaDestinatario(d.dest_id || '', d.annot_idx); paintNextNum(); paintRegistro();
+    applicaDestinatario(d.dest_id || ''); paintNextNum(); paintRegistro();
   } catch (e) {
     toast('DDT NON salvato (nessun numero consumato): ' + (e.message || e), true);
   } finally { BUSY = false; $('btn-stampa').disabled = false; $('btn-stampa').textContent = '🖨️ SALVA E STAMPA'; }
