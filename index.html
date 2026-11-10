@@ -309,11 +309,11 @@ function fmtMigliaia(el){                            // mentre si scrive: punto 
   let int = i < 0 ? raw : raw.slice(0, i);
   const dec = i < 0 ? null : raw.slice(i + 1).replace(/,/g, '').slice(0, 2);
   int = int.replace(/^0+(?=\d)/, '');
-  if (int === '' && dec !== null) int = '0';
+  let sig2 = sig; if (int === '' && dec !== null) { int = '0'; sig2++; }
   const out = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (dec !== null ? ',' + dec : '');
   el.value = out;
   let c = 0, pos = 0;
-  while (pos < out.length && c < sig) { if (/[0-9,]/.test(out[pos])) c++; pos++; }
+  while (pos < out.length && c < sig2) { if (/[0-9,]/.test(out[pos])) c++; pos++; }
   try { el.setSelectionRange(pos, pos); } catch (e) {}
 }
 function kgTxt(n){ return n === null || n === undefined || Number.isNaN(n) ? '' : fmtIT(n, 0, 2); }
@@ -437,6 +437,15 @@ SHEET.addEventListener('input', ev => {
 SHEET.addEventListener('blur', ev => {
   const el = ev.target; if (el.dataset && el.dataset.kg) { const n = numKg(el.value); if (n !== null && !Number.isNaN(n)) { el.value = kgTxt(n); if (el.dataset.peso) { DOC.peso = el.value; } else setp(DOC, el.dataset.k, el.value); ricalcolaPeso(); } }
 }, true);
+SHEET.addEventListener('keydown', ev => {
+  const el = ev.target;
+  if (el.dataset && el.dataset.kg && (ev.key === '.' || ev.key === ',')) {   // il punto del tastierino numerico fa la virgola
+    ev.preventDefault();
+    const a = el.selectionStart, b = el.selectionEnd, sel = el.value.slice(a, b);
+    if (el.value.includes(',') && !sel.includes(',')) return;                // una sola virgola
+    el.setRangeText(',', a, b, 'end'); el.dispatchEvent(new Event('input', { bubbles: true })); return;
+  }
+});
 SHEET.addEventListener('keydown', ev => {                       // Invio = campo successivo
   if (ev.key !== 'Enter' || !ev.target.dataset || !ev.target.dataset.k) return;
   ev.preventDefault();
