@@ -71,12 +71,31 @@ create table if not exists public.ddt_merce_escluse (
 );
 create index if not exists ddt_merce_escluse_anno_idx on public.ddt_merce_escluse (anno);
 
+-- Registro dei clienti sfridi (Padania, Rossi, Zanetti): una riga per consegna.
+-- Le righe collegate a un DDT (bolla_id) si creano da sole; le altre sono manuali/storiche.
+create table if not exists public.ddt_sfridi (
+  id uuid primary key default gen_random_uuid(),
+  cliente text not null check (cliente in ('padania', 'rossi', 'zanetti')),
+  data date not null,
+  numero int,                          -- numero del DDT (vuoto per le righe manuali)
+  kg numeric,
+  kg_expr text,                        -- formula scritta, es. =755+768
+  consegnati int not null default 0,   -- bancali consegnati
+  resi int not null default 0,         -- bancali resi
+  nota text,
+  bolla_id uuid unique references public.ddt_bolle (id) on delete set null,
+  annullata boolean not null default false,
+  creato_il timestamptz not null default now()
+);
+create index if not exists ddt_sfridi_cliente_idx on public.ddt_sfridi (cliente, data);
+
 -- 3) permessi (RLS) ----------------------------------------------------
 alter table public.ddt_destinatari enable row level security;
 alter table public.ddt_contatori   enable row level security;
 alter table public.ddt_config      enable row level security;
 alter table public.ddt_bolle       enable row level security;
 alter table public.ddt_merce_escluse enable row level security;
+alter table public.ddt_sfridi enable row level security;
 
 drop policy if exists ddt_dest_all on public.ddt_destinatari;
 create policy ddt_dest_all on public.ddt_destinatari for all to authenticated
@@ -92,6 +111,12 @@ drop policy if exists ddt_bolle_sel on public.ddt_bolle;
 create policy ddt_bolle_sel on public.ddt_bolle for select to authenticated using (public.ddt_ok());
 drop policy if exists ddt_escl_admin on public.ddt_merce_escluse;
 create policy ddt_escl_admin on public.ddt_merce_escluse for all to authenticated
+  using (public.ddt_is_admin()) with check (public.ddt_is_admin());
+
+drop policy if exists ddt_sfr_sel on public.ddt_sfridi;
+create policy ddt_sfr_sel on public.ddt_sfridi for select to authenticated using (public.ddt_ok());
+drop policy if exists ddt_sfr_admin on public.ddt_sfridi;
+create policy ddt_sfr_admin on public.ddt_sfridi for all to authenticated
   using (public.ddt_is_admin()) with check (public.ddt_is_admin());
 
 -- le bolle si creano/annullano solo con le funzioni qui sotto (numero sempre univoco)
@@ -126,6 +151,12 @@ begin
           lower(auth.jwt() ->> 'email'))
   returning * into v_row;
 
+  if coalesce(p ->> 'sfr', '') in ('padania', 'rossi', 'zanetti') then
+    insert into public.ddt_sfridi (cliente, data, numero, kg, consegnati, resi, bolla_id)
+    values (p ->> 'sfr', v_data, v_num, nullif(p ->> 'peso_num', '')::numeric,
+            coalesce(nullif(p ->> 'bancali_cons', '')::int, 0), coalesce(nullif(p ->> 'bancali_resi', '')::int, 0), v_row.id);
+  end if;
+
   return to_jsonb(v_row);
 end $$;
 
@@ -155,6 +186,9 @@ begin
     dati = p
   where id = p_id returning * into v_row;
   delete from public.ddt_merce_escluse where bolla_id = p_id;   -- le righe potrebbero essere cambiate
+  update public.ddt_sfridi set data = v_data, kg = nullif(p ->> 'peso_num', '')::numeric,
+         consegnati = coalesce(nullif(p ->> 'bancali_cons', '')::int, 0), resi = coalesce(nullif(p ->> 'bancali_resi', '')::int, 0)
+  where bolla_id = p_id;
   return to_jsonb(v_row);
 end $$;
 
@@ -166,6 +200,7 @@ begin
   update public.ddt_bolle set annullata = p_annulla,
          annullata_il = case when p_annulla then now() else null end
   where id = p_id;
+  update public.ddt_sfridi set annullata = p_annulla where bolla_id = p_id;
 end $$;
 
 -- Solo Paolo: decide da quale numero si riparte (es. l'ultimo DDT cartaceo

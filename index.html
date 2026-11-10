@@ -28,6 +28,11 @@ button,input,select,textarea{font-family:inherit;}
 .tab-btn{display:block;text-align:left;padding:11px 14px;border-radius:6px;border:0;background:none;color:#DCE3EA;font-size:1rem;font-weight:500;cursor:pointer;}
 .tab-btn:hover{background:rgba(255,255,255,.08);}
 .tab-btn.active{background:var(--amber);color:#1C2630;font-weight:700;}
+.tab-sep{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:#7F90A1;padding:14px 14px 2px;}
+.kpis{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 12px;}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px 16px;min-width:150px;}
+.kpi small{display:block;color:var(--muted);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+.kpi b{font-size:1.5rem;}
 .side-foot{margin-top:auto;display:flex;flex-direction:column;gap:10px;font-size:.8rem;color:#A9B8C6;}
 .side-foot .err{color:#FF9A9F;font-weight:600;} .side-foot .live{color:#7BE0A4;font-weight:600;}
 .side-foot button{background:none;border:1px solid #4A5A69;color:#DCE3EA;padding:7px 14px;font-size:.8rem;border-radius:6px;font-weight:500;cursor:pointer;}
@@ -156,6 +161,11 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <button class="tab-btn" data-p="compila">Nuovo DDT</button>
       <button class="tab-btn" data-p="registro">Registro bolle</button>
       <button class="tab-btn" data-p="merce" id="tab-merce" hidden>Merce uscita</button>
+      <div class="tab-sep">Clienti sfridi</div>
+      <button class="tab-btn" data-p="sf-padania">Padania</button>
+      <button class="tab-btn" data-p="sf-rossi">Rossi</button>
+      <button class="tab-btn" data-p="sf-zanetti">Zanetti</button>
+      <div class="tab-sep" style="padding-top:6px"></div>
       <button class="tab-btn" data-p="rubrica">Destinatari</button>
       <button class="tab-btn" data-p="impostazioni" id="tab-imp" hidden>Impostazioni</button>
     </nav>
@@ -171,7 +181,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
     <!-- ============ NUOVO DDT ============ -->
     <section id="p-compila" hidden>
       <div class="page-head">
-        <div><h2>Nuovo DDT</h2><p>Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.</p></div>
+        <div><h2 id="cmp-title">Nuovo DDT</h2><p id="cmp-sub">Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.</p></div>
         <div class="nextnum">Prossimo numero<br><b id="next-num">—</b></div>
       </div>
       <div class="card" id="edit-banner" hidden style="margin-bottom:14px;background:var(--warn-bg);display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -191,6 +201,18 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
         <button class="btn sec" id="btn-salva-solo" hidden>💾 Salva senza stampare</button>
         <span class="hint" id="hint-stampa"></span>
+      </div>
+      <div id="sf-ledger" hidden style="margin-top:34px">
+        <div class="page-head" style="margin-bottom:10px">
+          <div><h2 style="font-size:1.3rem" id="sf-l-title">Registro consegne e bancali</h2><p>Si aggiorna da solo a ogni DDT emesso a questo cliente.</p></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+            <div><label class="l" style="margin-top:0">Anno</label><select class="f" id="sf-anno" style="width:130px"></select></div>
+            <button class="btn sec" id="sf-add" hidden>➕ Aggiungi riga</button>
+            <button class="btn" id="sf-xlsx">⬇ Esporta Excel</button>
+          </div>
+        </div>
+        <div class="kpis" id="sf-kpi"></div>
+        <div class="tw" id="sf-wrap"></div>
       </div>
     </section>
 
@@ -300,6 +322,60 @@ const NOMI = { 'spedizioni@lotti.local': 'Spedizioni', 'admin@lotti.local': 'Pao
 const CEDENTE = ['Trentin Spa', 'Via Genova, 19 Z.I. - 37053 Cerea (VR)', 'C.F. e Part. IVA 03439000237', 'Stabilimento Pegognaga - Via Vittorio Foa, 1', '46020 Pegognaga (MN)'];
 const PARTENZA = 'Pegognaga (MN)';
 const N_RIGHE = 19;
+// Clienti sfridi: modulo dedicato (colonne, descrizione fissa, dicitura) + registro consegne/bancali
+const SFR = {
+  padania: { nome: 'Padania Alimenti', n: 19, layout: 'matr', desc: 'RITAGLI DI FORMAGGI NAZIONALI "CROSTE"', coda: [],
+    base: { ced: ['Padania Alimenti S.r.l.', 'Via Enrico Fermi, 79', '26041 Casalmaggiore (CR)'], dest: ['', '', ''], causale: 'VENDITA', cod_scarico: '1950', a_mezzo: 'vettore',
+            vettore: ['Autotrasporti Monticelli', 'Vicolo del Chiodo, 6', '46017 Rivarolo Mantovano (MN)'], targa: 'HC 319 MD' } },
+  rossi: { nome: 'Rossi F.lli', n: 12, layout: 'matr', desc: 'SFRIDI DI LAVORAZIONE DI PR/RE', coda: ['SFRIDI DI PARMIGIANO-REGGIANO DESTINATI AD ULTERIORE LAVORAZIONE', 'IN STABILIMENTO RICONOSCIUTO DA OCQ-PR'],
+    base: { ced: ['Rossi F.lli Srl', 'Via Risorgimento, 34', '42015 Correggio (RE)'], dest: ['Rossi F.lli Srl', 'Via Mandrio, 8/18', '42010 Rio Saliceto (RE)'], causale: 'VENDITA', cod_scarico: '1964', a_mezzo: 'cessionario', vettore: ['', '', ''], targa: 'EH 702 DG' } },
+  zanetti: { nome: 'Zanetti', n: 19, layout: 'tag', desc: 'RITAGLI DI FORMAGGI NAZIONALI "CROSTE"', coda: [],
+    base: { ced: ['Zanetti Spa', 'Via Madonna, 1', '24040 Lallio (BG)'], dest: ['Zanetti Spa', 'Via Enrico Fermi, 18', '25038 Rovato (BS)'], causale: 'VENDITA', cod_scarico: '1960', a_mezzo: 'cessionario', vettore: ['', '', ''], targa: '' } },
+};
+const nRighe = d => (d && d.sfr && SFR[d.sfr]) ? SFR[d.sfr].n : N_RIGHE;
+const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+function fmtMese(v){                                  // 1024 / 0324 / 10/24 / 102024 -> ott-24
+  const t = String(v || '').trim(); if (!t) return '';
+  if (/^[a-zA-Z]{3}-\d{2}$/.test(t)) return t.toLowerCase();
+  let dg = t.replace(/\D/g, ''); if (dg.length === 3) dg = '0' + dg;
+  if (dg.length === 6) dg = dg.slice(0, 2) + dg.slice(4);
+  if (dg.length !== 4) return t;
+  const m = Number(dg.slice(0, 2)); return m >= 1 && m <= 12 ? MESI[m - 1] + '-' + dg.slice(2) : t;
+}
+// quantità con formula: "=136+130" oppure "136+130" (il punto del tastierino è il decimale)
+function evalKg(s){
+  let t = String(s ?? '').trim(); if (!t) return null;
+  if (!/^=|\+/.test(t)) return numKg(t);
+  t = t.replace(/^=/, '').replace(/\s/g, '').replace(/,/g, '.');
+  if (!/^[0-9+\-*\/().]+$/.test(t)) return NaN;
+  try { const v = Function('"use strict";return (' + t + ')')(); return Number.isFinite(v) ? Math.round(v * 100) / 100 : NaN; } catch (e) { return NaN; }
+}
+const kgRiga = r => (r.kg_expr ? evalKg(r.kg_expr) : numKg(r.kg));
+function kgInput(el){                                  // mentre si scrive: formula oppure numero con migliaia
+  const was = !!el.dataset.expr, isExpr = /^=|\+/.test(el.value);
+  if (isExpr) { if (!was) el.value = el.value.replace(/\./g, ''); el.dataset.expr = el.value; return true; }
+  el.dataset.expr = ''; fmtMigliaia(el); return false;
+}
+function kgFocus(el){ if (el.dataset.expr) { el.value = el.dataset.expr; try { el.select(); } catch (e) {} } }
+function kgBlur(el){                                   // esce dal campo: mostra il risultato, conserva la formula
+  if (el.dataset.expr) {
+    const n = evalKg(el.dataset.expr);
+    if (n === null || Number.isNaN(n)) { toast('Formula non valida: «' + el.dataset.expr + '»', true); return null; }
+    if (!el.dataset.expr.startsWith('=')) el.dataset.expr = '=' + el.dataset.expr;
+    el.value = kgTxt(n); return { n, expr: el.dataset.expr };
+  }
+  const n = numKg(el.value); if (n !== null && !Number.isNaN(n)) { el.value = kgTxt(n); return { n, expr: '' }; }
+  return null;
+}
+// campi kg fuori dal modulo (finestre): classe «kgx»
+document.addEventListener('input', ev => { if (ev.target.classList && ev.target.classList.contains('kgx')) kgInput(ev.target); });
+document.addEventListener('focusin', ev => { if (ev.target.classList && ev.target.classList.contains('kgx')) kgFocus(ev.target); });
+document.addEventListener('focusout', ev => { if (ev.target.classList && ev.target.classList.contains('kgx')) kgBlur(ev.target); });
+document.addEventListener('keydown', ev => {
+  const el = ev.target; if (!(el.classList && el.classList.contains('kgx')) || !(ev.key === '.' || ev.key === ',') || /^=|\+/.test(el.value)) return;
+  ev.preventDefault(); const a = el.selectionStart, b = el.selectionEnd; if (el.value.includes(',') && !el.value.slice(a, b).includes(',')) return;
+  el.setRangeText(',', a, b, 'end'); el.dispatchEvent(new Event('input', { bubbles: true }));
+});
 
 const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const $ = id => document.getElementById(id);
@@ -358,17 +434,19 @@ function nuovoDoc(dati){
   const d = {
     dest_id: dati.dest_id || '', data: oggiISO(), a_mezzo: dati.a_mezzo || 'vettore',
     ced: [...(dati.ced || []), '', '', ''].slice(0, 3), dest: [...(dati.dest || []), '', '', ''].slice(0, 3),
-    causale: dati.causale || '', ord_num: '', ord_data: '', cod_scarico: '', in_conto: false, a_saldo: false,
-    righe: Array.from({ length: N_RIGHE }, () => ({ kg: '', desc: '', lotto: '' })),
+    causale: dati.causale || '', ord_num: '', ord_data: '', cod_scarico: dati.cod_scarico || '', in_conto: false, a_saldo: false,
+    righe: Array.from({ length: dati.n || N_RIGHE }, () => ({ kg: '', desc: '', lotto: '' })), sfr: dati.sfr || '', bancali_cons: '', bancali_resi: '', colli_manuale: false,
     aspetto: dati.aspetto || 'A VISTA', colli: '', peso: '', peso_manuale: false, porto: dati.porto || '', totale: '',
-    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: '', annotazioni: annotDi({ dati }), bancali: '',
+    vettore: [...(dati.vettore || []), '', '', ''].slice(0, 3), targa: dati.targa || '', annotazioni: annotDi({ dati }), bancali: '',
     copie: dati.copie || CFG.copie || 1,
   };
-  const dic = (dati.diciture || []).map(x => String(x).trim()).filter(Boolean).slice(0, N_RIGHE);
-  dic.forEach((t, i) => { d.righe[N_RIGHE - dic.length + i].desc = t; });
+  const dic = (dati.diciture || []).map(x => String(x).trim()).filter(Boolean).slice(0, d.righe.length);
+  dic.forEach((t, i) => { d.righe[d.righe.length - dic.length + i].desc = t; });
   return d;
 }
-function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = numKg(r.kg); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
+function nuovoDocSfr(key){ const c = SFR[key]; return nuovoDoc({ ...c.base, n: c.n, sfr: key, aspetto: 'A VISTA', copie: CFG.copie }); }
+function rigaUsata(d, r){ const f = x => String(x ?? '').trim(); return d.sfr ? !!(f(r.kg) || f(r.lotto) || f(r.matr) || f(r.mese) || f(r.tag)) : !!(f(r.kg) || f(r.desc) || f(r.lotto)); }
+function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = kgRiga(r); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
 function pesoNum(d){ if (d.peso_manuale) { const n = numKg(d.peso); return n === null || Number.isNaN(n) ? null : n; } return sommaKg(d); }
 function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni: String(d.annotazioni || '').trim(), copie: d.copie_rub || null }; }
 
@@ -380,10 +458,10 @@ function sheetHTML(d, mode, ctx){
     ? `<input data-k="${path}" value="${esc(getp(d, path))}" ${ph ? `placeholder="${esc(ph)}"` : ''} autocomplete="off" spellcheck="false" ${cls ? `class="${cls}"` : ''}>`
     : esc(getp(d, path));
   const KG = path => E
-    ? `<input data-k="${path}" data-kg="1" inputmode="decimal" value="${esc(getp(d, path))}" autocomplete="off">`
+    ? `<input data-k="${path}" data-kg="1" inputmode="decimal" value="${esc(getp(d, path))}" data-expr="${esc(getp(d, path.replace(/kg$/, 'kg_expr')) || '')}" autocomplete="off">`
     : esc(getp(d, path));
   const X = (on, key) => E ? `<button type="button" class="xbtn" data-chk="${key}" tabindex="-1">${on ? 'X' : ''}</button>` : (on ? 'X' : '');
-  const am = d.a_mezzo;
+  const am = d.a_mezzo, S = d.sfr ? SFR[d.sfr] : null;
   const pesoShown = d.peso_manuale ? d.peso : kgTxt(sommaKg(d));
   const dataRit = ctx.ritiro_data || (E ? oggiISO() : ''), oraRit = ctx.ritiro_ora || (E ? oraHHMM() : '');
   const destVuota = d.dest.every(x => !String(x).trim());
@@ -403,20 +481,38 @@ function sheetHTML(d, mode, ctx){
   for (let i = 0; i < 3; i++) h += H(18.95, `<td colspan="4" class="ced">${T('ced.' + i, 'c b')}</td><td colspan="7" class="ced">${destLine(i)}</td>`);
   h += H(15.95, `<td colspan="4" class="lab">CAUSALE DEL TRASPORTO</td><td class="lab">VS. ORDINE N.</td><td></td><td class="lab">DATA</td><td colspan="2" class="lab">Cod. scarico</td><td class="x">${X(d.in_conto, 'in_conto')}</td><td class="lab">IN CONTO</td>`);
   h += H(15.95, `<td colspan="4" class="c b">${T('causale', 'c b')}</td><td class="c">${T('ord_num', 'c')}</td><td></td><td class="c">${T('ord_data', 'c')}</td><td colspan="2" class="c">${T('cod_scarico', 'c')}</td><td class="x">${X(d.a_saldo, 'a_saldo')}</td><td class="lab">A SALDO</td>`);
+  if (!S) {
   h += H(15.95, `<td colspan="2" class="lab m" style="font-size:9.5pt">QUANTITÀ (IN KG)</td><td colspan="7" class="lab m" style="font-size:9.5pt">DESCRIZIONE DEI BENI</td><td colspan="2" class="lab m" style="font-size:9.5pt">LOTTO</td>`);
   for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7"${String((d.righe[i] || {}).desc || '').length > 52 ? ' style="font-size:9pt"' : ''}>${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
+  } else {
+    const lab = (c, t, cs) => `<td ${cs ? `colspan="${cs}" ` : ''}class="lab m" style="font-size:9.5pt">${t}</td>`;
+    h += H(15.95, S.layout === 'matr' ? lab(0, 'KG') + lab(0, 'DESCRIZIONE DEI BENI', 5) + lab(0, 'MATRICOLA', 2) + lab(0, 'MESE ANNO', 2) + lab(0, 'LOTTO') : lab(0, 'KG') + lab(0, 'DESCRIZIONE DEI BENI', 10));
+    for (let i = 0; i < S.n; i++) {
+      const r = d.righe[i] || {}, used = rigaUsata(d, r), p = 'righe.' + i + '.';
+      const dcell = `<td colspan="5" class="c"${E ? ` data-desc="${i}"` : ''} style="font-size:10pt">${used ? esc(S.desc) : ''}</td>`;
+      h += H(18, S.layout === 'matr'
+        ? `<td class="r">${KG(p + 'kg')}</td>${dcell}<td colspan="2" class="c">${T(p + 'matr', 'c')}</td><td colspan="2" class="c">${E ? `<input data-k="${p}mese" data-fmt="mese" value="${esc(r.mese || '')}" autocomplete="off" class="c">` : esc(r.mese || '')}</td><td class="c">${T(p + 'lotto', 'c')}</td>`
+        : `<td class="r">${KG(p + 'kg')}</td>${dcell}<td colspan="2" class="c b"${E ? ` data-lab="${i}"` : ''}>${used ? 'LOTTO' : ''}</td><td colspan="2" class="c" style="font-size:8pt">${E ? `<input data-k="${p}tag" data-fmt="tag" value="${esc(r.tag || '')}" autocomplete="off" class="c">` : esc(r.tag || '')}</td><td class="c">${T(p + 'lotto', 'c')}</td>`);
+    }
+    S.coda.forEach(t => { h += H(18, `<td colspan="11" class="c b" style="font-size:11pt">${esc(t)}</td>`); });
+  }
   h += H(14.1, `<td colspan="3" class="lab">ASPETTO ESTERIORE DEI BENI</td><td class="lab">N. COLLI</td><td colspan="2" class="lab">PESO KG.</td><td colspan="2" class="lab">PORTO</td><td rowspan="2" class="lab" style="font-size:10pt">TOTALE €</td><td colspan="2" rowspan="2" class="c">${T('totale', 'c')}</td>`);
   h += H(18.95, `<td colspan="3" class="c b" style="font-size:11pt">${T('aspetto', 'c b')}</td><td class="c b">${T('colli', 'c b')}</td><td colspan="2" class="c b">${E ? `<input data-k="peso" data-kg="1" data-peso="1" class="${d.peso_manuale ? '' : 'auto'}" value="${esc(pesoShown)}" inputmode="decimal" style="text-align:center;font-weight:700">` : esc(pesoShown)}</td><td colspan="2" class="c">${T('porto', 'c')}</td>`);
   h += H(12, `<td colspan="3" class="lab" style="font-size:8pt">VETTORE: ditta, domicilio o residenza</td><td colspan="2" class="lab" style="font-size:7pt">DATA E ORA DEL RITIRO</td><td colspan="6" rowspan="4"></td>`);
-  h += H(12, `<td colspan="3">${T('vettore.0', '')}</td><td rowspan="2" class="lab" style="font-size:9pt">DATA</td><td rowspan="2" class="lab" style="font-size:9pt">ORA</td>`);
-  h += H(14.1, `<td colspan="3">${T('vettore.1', '')}</td>`);
-  h += H(14.1, `<td colspan="3">${T('vettore.2', '')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
+  h += H(12, `<td colspan="3" class="c">${T('vettore.0', 'c')}</td><td rowspan="2" class="lab" style="font-size:9pt">DATA</td><td rowspan="2" class="lab" style="font-size:9pt">ORA</td>`);
+  h += H(14.1, `<td colspan="3" class="c">${T('vettore.1', 'c')}</td>`);
+  h += H(14.1, `<td colspan="3" class="c">${T('vettore.2', 'c')}</td><td class="c" style="font-size:8pt">${esc(fmtData(dataRit))}</td><td class="c" style="font-size:8pt">${esc(oraRit)}</td>`);
   h += H(14.1, `<td colspan="5" class="lab" style="font-size:9.5pt">Consegna o inizio trasporto a mezzo</td><td class="x" style="font-size:9pt">${am === 'cedente' ? 'X' : ''}</td><td class="lab" style="background:#fff">cedente</td><td class="x">${am === 'cessionario' ? 'X' : ''}</td><td class="lab" style="background:#fff">cessionario</td><td class="x">${am === 'vettore' ? 'X' : ''}</td><td class="lab" style="background:#fff">vettore</td>`);
   h += H(14.1, `<td colspan="5" class="lab">ANNOTAZIONI - VARIAZIONI</td><td colspan="6" class="nob"></td>`);
   h += H(14.1, `<td colspan="2" class="lab" style="font-size:9.5pt;text-align:left">TARGA AUTOMEZZO</td><td colspan="4">${T('targa', 'c b')}</td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CONDUCENTE</td>`);
   h += H(14.1, `<td colspan="6">${T('annotazioni', '')}</td><td colspan="5" rowspan="1"></td>`);
-  h += H(14.1, `<td colspan="2" rowspan="2" class="lab" style="font-size:8pt">${E || String(d.bancali).trim() ? 'BANCALI CARICATI' : ''}</td><td colspan="2" rowspan="2" class="c b">${T('bancali', 'c b')}</td><td colspan="2" rowspan="2"></td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CESSIONARIO</td>`);
-  h += H(14.1, `<td colspan="5"></td>`);
+  if (!S) {
+    h += H(14.1, `<td colspan="2" rowspan="2" class="lab" style="font-size:8pt">${E || String(d.bancali).trim() ? 'BANCALI CARICATI' : ''}</td><td colspan="2" rowspan="2" class="c b">${T('bancali', 'c b')}</td><td colspan="2" rowspan="2"></td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CESSIONARIO</td>`);
+    h += H(14.1, `<td colspan="5"></td>`);
+  } else {
+    h += H(14.1, `<td colspan="2" class="lab" style="font-size:6.5pt">BANCALI IN PLASTICA CONSEGNATI</td><td colspan="2" class="r b">${E ? `<input data-k="bancali_cons" inputmode="numeric" value="${esc(d.bancali_cons)}" autocomplete="off" style="text-align:right;font-weight:700">` : esc(d.bancali_cons)}</td><td colspan="2" rowspan="2"></td><td colspan="5" class="lab" style="font-size:9.5pt">FIRMA DEL CESSIONARIO</td>`);
+    h += H(14.1, `<td colspan="2" class="lab" style="font-size:6.5pt">BANCALI IN PLASTICA RESI</td><td colspan="2" class="r b">${E ? `<input data-k="bancali_resi" inputmode="numeric" value="${esc(d.bancali_resi)}" autocomplete="off" style="text-align:right;font-weight:700">` : esc(d.bancali_resi)}</td><td colspan="5"></td>`);
+  }
   return h + '</table>';
 }
 
@@ -432,6 +528,11 @@ function paintEditUI(){
   $('btn-stampa').textContent = ed ? '🖨️ SALVA MODIFICHE E STAMPA' : '🖨️ SALVA E STAMPA';
   $('btn-salva-solo').hidden = !ed;
   for (const id of ['sel-dest', 'btn-nuovo-dest', 'btn-svuota']) $(id).disabled = ed;
+  const sf = !!(DOC && DOC.sfr);
+  $('cmp-title').textContent = sf ? 'Sfridi · ' + SFR[DOC.sfr].nome : 'Nuovo DDT';
+  $('cmp-sub').textContent = sf ? 'Descrizione automatica. Nei kg puoi scrivere somme, es. =136+130. Il registro bancali e consegne si aggiorna da solo.' : 'Compila il modulo, poi «Salva e stampa»: il numero viene assegnato in automatico.';
+  document.querySelector('#p-compila .toolbar .dest').hidden = sf; $('btn-nuovo-dest').hidden = sf; $('btn-salva-rub').hidden = sf;
+  $('sf-ledger').hidden = !sf; if (sf) paintSfLedger();
 }
 $('btn-annulla-mod').addEventListener('click', () => { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); go('registro'); });
 function ricalcolaPeso(){
@@ -453,28 +554,47 @@ function paintNextNum(){
   $('next-num').textContent = (CONT[y] || 0) + 1 + ' / ' + y;
 }
 $('sel-dest').addEventListener('change', () => applicaDestinatario($('sel-dest').value));
-$('btn-svuota').addEventListener('click', () => { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); });
+$('btn-svuota').addEventListener('click', () => { DOC = DOC.sfr ? nuovoDocSfr(DOC.sfr) : nuovoDoc(); paintSheet(); paintDestSelect(); paintNextNum(); });
 $('btn-nuovo-dest').addEventListener('click', () => { DOC = nuovoDoc({ a_mezzo: 'vettore' }); paintSheet(); paintDestSelect(); const f = document.querySelector('#sheet-edit [data-k="ced.0"]'); if (f) f.focus(); toast('Scrivi il destinatario nel modulo, poi «Salva in rubrica» (o salverò alla stampa).'); });
 $('in-copie').addEventListener('input', () => { DOC.copie = Math.max(1, Math.min(20, parseInt($('in-copie').value, 10) || 1)); });
 
 // scrittura nei campi del modulo
 const SHEET = $('sheet-edit');
+function refreshRiga(k){                                // descrizione e «LOTTO» fissi compaiono appena la riga è usata
+  const m = /^righe\.(\d+)\./.exec(k); if (!m || !DOC.sfr) return;
+  const i = m[1], used = rigaUsata(DOC, DOC.righe[i] || {});
+  const dc = SHEET.querySelector(`[data-desc="${i}"]`); if (dc) dc.textContent = used ? SFR[DOC.sfr].desc : '';
+  const lb = SHEET.querySelector(`[data-lab="${i}"]`); if (lb) lb.textContent = used ? 'LOTTO' : '';
+}
 SHEET.addEventListener('input', ev => {
   const el = ev.target; if (!el.dataset || !el.dataset.k) return;
+  const k = el.dataset.k, isKgRiga = /^righe\.\d+\.kg$/.test(k);
+  if (el.dataset.fmt === 'tag') el.value = el.value.toUpperCase();
+  if (isKgRiga) { kgInput(el); setp(DOC, k, el.value); setp(DOC, k.replace(/kg$/, 'kg_expr'), el.dataset.expr || ''); ricalcolaPeso(); refreshRiga(k); return; }
   if (el.dataset.kg) fmtMigliaia(el);
-  const k = el.dataset.k;
   if (el.dataset.peso) { DOC.peso = el.value; DOC.peso_manuale = el.value.trim() !== ''; ricalcolaPeso(); if (!DOC.peso_manuale) DOC.peso = ''; return; }
   setp(DOC, k, el.value);
-  if (/^righe\.\d+\.kg$/.test(k)) ricalcolaPeso();
   if (k === 'data') paintNextNum();
-  if (/^(ced|dest)\./.test(k) && el.value && /^ced\.0$/.test(k)) { /* nome scritto a mano */ }
+  refreshRiga(k);
+  if (DOC.sfr && k === 'bancali_cons' && !DOC.colli_manuale) { DOC.colli = el.value; const c = SHEET.querySelector('[data-k="colli"]'); if (c) c.value = el.value; }
+  if (DOC.sfr && k === 'colli') DOC.colli_manuale = el.value.trim() !== '';
 });
+SHEET.addEventListener('focusin', ev => { const el = ev.target; if (el.dataset && el.dataset.kg && /^righe\.\d+\.kg$/.test(el.dataset.k || '')) kgFocus(el); });
 SHEET.addEventListener('blur', ev => {
-  const el = ev.target; if (el.dataset && el.dataset.kg) { const n = numKg(el.value); if (n !== null && !Number.isNaN(n)) { el.value = kgTxt(n); if (el.dataset.peso) { DOC.peso = el.value; } else setp(DOC, el.dataset.k, el.value); ricalcolaPeso(); } }
+  const el = ev.target; if (!el.dataset) return;
+  const k = el.dataset.k || '';
+  if (/^righe\.\d+\.kg$/.test(k)) {
+    const r = kgBlur(el);
+    if (r) { setp(DOC, k, el.value); setp(DOC, k.replace(/kg$/, 'kg_expr'), r.expr); } else if (!el.dataset.expr) { setp(DOC, k, el.value); setp(DOC, k.replace(/kg$/, 'kg_expr'), ''); }
+    ricalcolaPeso(); refreshRiga(k); return;
+  }
+  if (el.dataset.kg) { const n = numKg(el.value); if (n !== null && !Number.isNaN(n)) { el.value = kgTxt(n); if (el.dataset.peso) DOC.peso = el.value; else setp(DOC, k, el.value); ricalcolaPeso(); } return; }
+  if (el.dataset.fmt === 'mese') { el.value = fmtMese(el.value); setp(DOC, k, el.value); }
+  if (el.dataset.fmt === 'tag') { const t = el.value.trim().toUpperCase(); el.value = t === 'P' ? 'PAD' : t === 'R' ? 'REG' : t; setp(DOC, k, el.value); }
 }, true);
 SHEET.addEventListener('keydown', ev => {
   const el = ev.target;
-  if (el.dataset && el.dataset.kg && (ev.key === '.' || ev.key === ',')) {   // il punto del tastierino numerico fa la virgola
+  if (el.dataset && el.dataset.kg && (ev.key === '.' || ev.key === ',') && !/^=|\+/.test(el.value)) {   // il punto del tastierino numerico fa la virgola
     ev.preventDefault();
     const a = el.selectionStart, b = el.selectionEnd, sel = el.value.slice(a, b);
     if (el.value.includes(',') && !sel.includes(',')) return;                // una sola virgola
@@ -602,16 +722,16 @@ $('rb-wrap').addEventListener('click', async ev => {
 
 // ---------- SALVA E STAMPA ----------
 function dicDi(d){ const r = DEST.find(x => x.id === d.dest_id); return ((r && r.dati.diciture) || []).map(x => String(x).trim()); }
-function haMerce(d){ const dic = dicDi(d); return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim() || (String(r.desc).trim() && !dic.includes(String(r.desc).trim()))); }
-function righeUtili(d){ return d.righe.filter(r => String(r.kg).trim() || String(r.desc).trim() || String(r.lotto).trim()); }
+function haMerce(d){ if (d.sfr) return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim()); const dic = dicDi(d); return d.righe.some(r => String(r.kg).trim() || String(r.lotto).trim() || (String(r.desc).trim() && !dic.includes(String(r.desc).trim()))); }
+function righeUtili(d){ return d.righe.filter(r => rigaUsata(d, r)).map(r => d.sfr ? { ...r, desc: SFR[d.sfr].desc } : r); }
 async function salvaEStampa(stampa){
   if (BUSY) return;
   const d = DOC;
   if (!String(d.ced[0]).trim()) { toast('Manca il destinatario: scegli dall\'elenco o scrivilo nel modulo.', true); return; }
   if (!haMerce(d)) { toast('Il DDT non ha nessuna riga: scrivi almeno una quantità o una descrizione.', true); return; }
-  for (const r of d.righe) { const n = numKg(r.kg); if (Number.isNaN(n)) { toast('C\'è una quantità non valida: «' + r.kg + '»', true); return; } }
+  for (const r of d.righe) { const n = kgRiga(r); if (Number.isNaN(n)) { toast('C\'è una quantità non valida: «' + r.kg + '»', true); return; } }
   // destinatario nuovo scritto a mano e non ancora in rubrica
-  if (!d.dest_id) {
+  if (!d.dest_id && !d.sfr) {
     const scelta = await new Promise(res => {
       openModal(`<h2>Destinatario nuovo</h2><p style="line-height:1.5">«<b>${esc(d.ced[0])}</b>» non è ancora in rubrica. Lo salvo, così la prossima volta lo trovi nell'elenco?</p>
         <div class="acts"><button class="btn sec" id="q-ann">Annulla</button><button class="btn sec" id="q-no">Stampa senza salvare</button><button class="btn" id="q-si">Salva in rubrica e stampa</button></div>`);
@@ -626,7 +746,7 @@ async function salvaEStampa(stampa){
   try {
     const ritiro_data = editing ? d.ritiro_data : oggiISO(), ritiro_ora = editing ? d.ritiro_ora : oraHHMM();
     const payload = { ...clone(d), righe: righeUtili(d), peso: d.peso_manuale ? d.peso : kgTxt(sommaKg(d)), peso_num: pesoNum(d), ritiro_data, ritiro_ora };
-    delete payload.copie_rub; delete payload.edit_id; delete payload.edit_num; delete payload.edit_data;
+    delete payload.copie_rub; delete payload.colli_manuale; delete payload.edit_id; delete payload.edit_num; delete payload.edit_data;
     if (editing) {
       const r = await sb.rpc('ddt_modifica', { p_id: d.edit_id, p: payload }); if (r.error) throw r.error; data = r.data;
       const i = BOLLE.findIndex(x => x.id === data.id); if (i >= 0) BOLLE[i] = data; else BOLLE.unshift(data);
@@ -647,14 +767,16 @@ async function salvaEStampa(stampa){
     toast(`DDT n. ${data.numero} SALVATO, ma la stampa non è partita (${e.message || e}). Usa «Ristampa» nel registro.`, true);
   }
   BUSY = false; $('btn-stampa').disabled = false; $('btn-salva-solo').disabled = false;
-  applicaDestinatario(editing ? '' : (d.dest_id || '')); paintNextNum(); paintRegistro();
+  await caricaSfridi();
+  if (d.sfr && !editing) { DOC = nuovoDocSfr(d.sfr); paintSheet(); } else applicaDestinatario(editing ? '' : (d.dest_id || ''));
+  paintNextNum(); paintRegistro();
   if (editing) go('registro');
 }
 $('btn-stampa').addEventListener('click', () => salvaEStampa(true));
 $('btn-salva-solo').addEventListener('click', () => salvaEStampa(false));
 
 function stampaBolla(row, copie){
-  const d = { ...row.dati, righe: Array.from({ length: N_RIGHE }, (_, i) => (row.dati.righe || [])[i] || { kg: '', desc: '', lotto: '' }) }, ctx = { numero: row.numero, ritiro_data: d.ritiro_data, ritiro_ora: d.ritiro_ora };
+  const d = { ...row.dati, righe: Array.from({ length: nRighe(row.dati) }, (_, i) => (row.dati.righe || [])[i] || { kg: '', desc: '', lotto: '' }) }, ctx = { numero: row.numero, ritiro_data: d.ritiro_data, ritiro_ora: d.ritiro_ora };
   const pag = `<div class="pagina">${sheetHTML({ ...d, data: row.data }, 'print', ctx)}</div>`;
   $('print-root').innerHTML = Array.from({ length: Math.max(1, copie || 1) }, () => pag).join('');
   document.body.classList.add('printing');
@@ -712,14 +834,14 @@ $('rg-wrap').addEventListener('click', async ev => {
   } else if (b.dataset.a === 'mod') {
     DOC = nuovoDoc(); const { peso_num, numero, ...resto } = row.dati;
     Object.assign(DOC, clone(resto), { data: row.data, edit_id: row.id, edit_num: row.numero, edit_data: row.data });
-    DOC.righe = clone(Array.from({ length: N_RIGHE }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
+    DOC.righe = clone(Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
     DOC.copie = row.copie || DOC.copie;
-    go('compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0);
+    go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0);
   } else if (b.dataset.a === 'dup') {
     DOC = nuovoDoc(); const { ritiro_data, ritiro_ora, peso_num, numero, edit_id, edit_num, edit_data, ...resto } = row.dati;
     Object.assign(DOC, clone(resto), { data: oggiISO() });
-    const righe = Array.from({ length: N_RIGHE }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }); DOC.righe = clone(righe);
-    go('compila'); paintSheet(); paintDestSelect(); paintNextNum(); toast('Bolla copiata in un nuovo DDT: controlla e premi «Salva e stampa».');
+    const righe = Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }); DOC.righe = clone(righe);
+    go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); toast('Bolla copiata in un nuovo DDT: controlla e premi «Salva e stampa».');
   } else if (b.dataset.a === 'ann') {
     const annulla = !row.annullata;
     openModal(`<h2>${annulla ? 'Annullare' : 'Ripristinare'} il DDT n. ${row.numero}?</h2><p style="line-height:1.5">${annulla ? 'Il numero resta nel registro come ANNULLATO (la numerazione non si riutilizza) e non viene conteggiato nei totali.' : 'Il DDT torna valido.'}</p><div class="acts"><button class="btn sec" id="an-no">No</button><button class="btn ${annulla ? 'danger' : ''}" id="an-si">${annulla ? 'Annulla il DDT' : 'Ripristina'}</button></div>`);
@@ -727,7 +849,7 @@ $('rg-wrap').addEventListener('click', async ev => {
     $('an-si').onclick = async () => {
       const { error } = await sb.rpc('ddt_annulla', { p_id: row.id, p_annulla: annulla });
       closeModal(); if (error) { toast('Non riuscito: ' + error.message, true); return; }
-      row.annullata = annulla; paintRegistro(); toast(annulla ? 'DDT annullato' : 'DDT ripristinato');
+      row.annullata = annulla; await caricaSfridi(); paintRegistro(); toast(annulla ? 'DDT annullato' : 'DDT ripristinato');
     };
   }
 });
@@ -751,6 +873,75 @@ $('btn-regprint').addEventListener('click', () => {
   const fine = () => { document.body.classList.remove('printing-reg'); window.removeEventListener('afterprint', fine); };
   window.addEventListener('afterprint', fine);
   setTimeout(() => window.print(), 80);
+});
+
+// ---------- registro sfridi (bancali e consegne per cliente) ----------
+let SFR_ROWS = [], SFR_OK = true; const SFL = { anno: '' };
+async function caricaSfridi(){
+  const r = await sb.from('ddt_sfridi').select('*').order('data', { ascending: true });
+  if (r.error) { SFR_OK = false; SFR_ROWS = []; return; } SFR_OK = true; SFR_ROWS = r.data || [];
+}
+function sfRighe(key){
+  const rows = SFR_ROWS.filter(x => x.cliente === key && !x.annullata).slice().sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : ((a.numero || 0) - (b.numero || 0)) || String(a.creato_il).localeCompare(String(b.creato_il))));
+  let saldo = 0; return rows.map(x => { saldo += (x.consegnati || 0) - (x.resi || 0); return { ...x, saldo }; });
+}
+function sfVisibili(key){ const all = sfRighe(key); return SFL.anno === 'tutti' ? all : all.filter(x => x.data.slice(0, 4) === SFL.anno); }
+function paintSfLedger(){
+  if (!DOC || !DOC.sfr) return; const key = DOC.sfr, all = sfRighe(key);
+  if (!SFR_OK) { $('sf-wrap').innerHTML = '<div class="empty">Manca la tabella del registro: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; $('sf-kpi').innerHTML = ''; return; }
+  const anni = [...new Set(all.map(x => x.data.slice(0, 4)))].sort().reverse();
+  if (SFL.anno !== 'tutti' && !anni.includes(SFL.anno)) SFL.anno = anni[0] || 'tutti';
+  $('sf-anno').innerHTML = '<option value="tutti">Tutti gli anni</option>' + anni.map(a => `<option>${a}</option>`).join(''); $('sf-anno').value = SFL.anno;
+  $('sf-add').hidden = !(ME && ME.admin);
+  $('sf-l-title').textContent = 'Registro consegne e bancali · ' + SFR[key].nome;
+  const vis = sfVisibili(key), kg = vis.reduce((s, x) => s + (Number(x.kg) || 0), 0), last = all[all.length - 1];
+  $('sf-kpi').innerHTML = `<div class="kpi"><small>Saldo bancali</small><b>${last ? last.saldo : 0}</b></div><div class="kpi"><small>Consegne (${SFL.anno === 'tutti' ? 'tutte' : SFL.anno})</small><b>${vis.length}</b></div><div class="kpi"><small>Kg consegnati (${SFL.anno === 'tutti' ? 'tutti' : SFL.anno})</small><b>${fmtIT(kg, 0, 2)}</b></div><div class="kpi"><small>Ultima consegna</small><b>${last ? fmtData(last.data) : '—'}</b></div>`;
+  const adm = ME && ME.admin;
+  $('sf-wrap').innerHTML = vis.length ? `<table class="t"><thead><tr><th>Data</th><th>N. DDT</th><th>Kg consegnati</th><th>Bancali consegnati</th><th>Bancali resi</th><th>Saldo bancali</th><th>Note</th><th></th></tr></thead><tbody>${
+    vis.slice().reverse().map(x => `<tr><td class="n">${fmtData(x.data)}</td><td class="n">${x.numero ?? ''}</td><td class="n" title="${esc(x.kg_expr || '')}">${x.kg == null ? '' : fmtIT(x.kg, 0, 2)}</td><td class="n">${x.consegnati || 0}</td><td class="n">${x.resi || 0}</td><td class="n"><b>${x.saldo}</b></td><td>${esc(x.nota || '')}</td>
+      <td class="act st">${adm && !x.bolla_id ? `<button class="btn small sec" data-a="sfmod" data-id="${x.id}">Modifica</button> <button class="btn small sec" data-a="sfdel" data-id="${x.id}">Elimina</button>` : ''}</td></tr>`).join('')
+  }</tbody></table>` : '<div class="empty">Nessuna consegna registrata per questo anno.</div>';
+}
+$('sf-anno').addEventListener('change', () => { SFL.anno = $('sf-anno').value; paintSfLedger(); });
+function apriSfRiga(id){
+  const x = id ? SFR_ROWS.find(r => r.id === id) : null, key = DOC.sfr;
+  openModal(`<h2>${x ? 'Modifica riga' : 'Nuova riga'} · ${esc(SFR[key].nome)}</h2>
+    <div class="row2"><div><label class="l">Data</label><input class="f" type="date" id="sr-data" value="${esc(x ? x.data : oggiISO())}"></div>
+    <div><label class="l">Kg consegnati (anche somme: =136+130)</label><input class="f kgx" id="sr-kg" inputmode="decimal" data-expr="${esc((x && x.kg_expr) || '')}" value="${esc(x && x.kg != null ? kgTxt(Number(x.kg)) : '')}"></div></div>
+    <div class="row2"><div><label class="l">Bancali consegnati</label><input class="f" type="number" min="0" id="sr-cons" value="${x ? x.consegnati || 0 : 0}"></div>
+    <div><label class="l">Bancali resi</label><input class="f" type="number" min="0" id="sr-resi" value="${x ? x.resi || 0 : 0}"></div></div>
+    <label class="l">Note</label><input class="f" id="sr-nota" value="${esc((x && x.nota) || '')}">
+    <div class="msg err" id="sr-err"></div>
+    <div class="acts"><button class="btn sec" id="sr-no">Annulla</button><button class="btn" id="sr-si">Salva</button></div>`);
+  $('sr-no').onclick = closeModal;
+  $('sr-si').onclick = async () => {
+    const kgEl = $('sr-kg'), n = evalKg(kgEl.dataset.expr || kgEl.value);
+    if (!$('sr-data').value) { $('sr-err').textContent = 'Scegli la data.'; return; }
+    if (Number.isNaN(n)) { $('sr-err').textContent = 'Kg non validi.'; return; }
+    const expr = kgEl.dataset.expr ? (kgEl.dataset.expr.startsWith('=') ? kgEl.dataset.expr : '=' + kgEl.dataset.expr) : null;
+    const rec = { cliente: key, data: $('sr-data').value, kg: n, kg_expr: expr, consegnati: parseInt($('sr-cons').value, 10) || 0, resi: parseInt($('sr-resi').value, 10) || 0, nota: $('sr-nota').value.trim() || null };
+    const r = x ? await sb.from('ddt_sfridi').update(rec).eq('id', x.id) : await sb.from('ddt_sfridi').insert(rec);
+    if (r.error) { $('sr-err').textContent = 'Non salvato: ' + r.error.message; return; }
+    closeModal(); await caricaSfridi(); paintSfLedger(); toast('Riga salvata');
+  };
+}
+$('sf-add').addEventListener('click', () => apriSfRiga(null));
+$('sf-wrap').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-a]'); if (!b) return;
+  if (b.dataset.a === 'sfmod') apriSfRiga(b.dataset.id);
+  else if (b.dataset.a === 'sfdel') {
+    const x = SFR_ROWS.find(r => r.id === b.dataset.id);
+    openModal(`<h2>Eliminare la riga del ${fmtData(x.data)}?</h2><p>Il saldo bancali viene ricalcolato.</p><div class="acts"><button class="btn sec" id="sd-no">Annulla</button><button class="btn danger" id="sd-si">Elimina</button></div>`);
+    $('sd-no').onclick = closeModal;
+    $('sd-si').onclick = async () => { const r = await sb.from('ddt_sfridi').delete().eq('id', x.id); closeModal(); if (r.error) { toast('Non eliminata: ' + r.error.message, true); return; } await caricaSfridi(); paintSfLedger(); toast('Riga eliminata'); };
+  }
+});
+$('sf-xlsx').addEventListener('click', () => {
+  if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
+  const righe = sfVisibili(DOC.sfr).map(x => ({ 'Data': fmtData(x.data), 'N. DDT': x.numero ?? '', 'Kg consegnati': x.kg == null ? '' : Number(x.kg), 'Bancali consegnati': x.consegnati || 0, 'Bancali resi': x.resi || 0, 'Saldo bancali': x.saldo, 'Note': x.nota || '' }));
+  if (!righe.length) { toast('Non ci sono righe da esportare.', true); return; }
+  const ws = XLSX.utils.json_to_sheet(righe); ws['!cols'] = [11, 8, 14, 18, 13, 13, 30].map(x => ({ wch: x }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, SFR[DOC.sfr].nome.slice(0, 30)); XLSX.writeFile(wb, `Registro_${DOC.sfr}_${SFL.anno}.xlsx`);
 });
 
 // ---------- merce uscita (solo Paolo) ----------
@@ -839,11 +1030,17 @@ $('im-salva-copie').addEventListener('click', async () => {
 // ---------- navigazione ----------
 function go(p){ location.hash = '#' + p; }
 function route(){
-  let p = (location.hash || '#compila').slice(1);
+  let p = (location.hash || '#compila').slice(1), sfKey = '';
+  if (p.startsWith('sf-')) { sfKey = SFR[p.slice(3)] ? p.slice(3) : ''; p = 'compila'; }
   if (!['compila', 'registro', 'merce', 'rubrica', 'impostazioni'].includes(p)) p = 'compila';
   if ((p === 'impostazioni' || p === 'merce') && !(ME && ME.admin)) p = 'compila';
   for (const s of ['compila', 'registro', 'merce', 'rubrica', 'impostazioni']) $('p-' + s).hidden = s !== p;
-  document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+  const act = sfKey ? 'sf-' + sfKey : p;
+  document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.p === act));
+  if (p === 'compila' && ME) {
+    if (sfKey) { if (!DOC || DOC.sfr !== sfKey) { DOC = nuovoDocSfr(sfKey); paintSheet(); } }
+    else if (DOC && DOC.sfr && !DOC.edit_id) { DOC = nuovoDoc(); paintSheet(); paintDestSelect(); }
+  }
   if (p === 'merce') paintMerce(); if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'compila') paintNextNum();
 }
 $('tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab-btn'); if (b) go(b.dataset.p); });
@@ -870,7 +1067,7 @@ async function loadData(manuale){
     for (const r of [d, c, f]) if (r.error) throw r.error;
     DEST = d.data || []; CONT = {}; (c.data || []).forEach(x => CONT[x.anno] = x.ultimo);
     (f.data || []).forEach(x => { if (x.chiave === 'copie') CFG.copie = Number(x.valore) || 1; });
-    await caricaBolle();
+    await caricaBolle(); await caricaSfridi();
     setStatus('Connesso', 'live');
     paintDestSelect(); paintAnni(); paintRubrica(); paintRegistro(); paintMerce(); paintNextNum(); $('im-copie').value = CFG.copie;
     if (manuale) toast('Dati aggiornati');
