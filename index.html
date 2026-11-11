@@ -449,6 +449,7 @@ function toast(m, bad){ const t = $('toast'); t.textContent = m; t.classList.tog
 function openModal(html, wide){ $('modal').className = 'modal' + (wide ? ' wide' : ''); $('modal').innerHTML = html; $('modal-overlay').classList.add('show'); }
 function closeModal(){ $('modal-overlay').classList.remove('show'); $('modal').innerHTML = ''; }
 function setStatus(t, cls){ const e = $('stato'); e.textContent = t; e.className = cls || ''; }
+function statoOra(){ setStatus('Connesso · aggiornato alle ' + new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }), 'live'); }
 const getp = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
 function setp(o, p, v){ const ks = p.split('.'); const last = ks.pop(); const t = ks.reduce((a, k) => a[k], o); t[last] = v; }
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1339,7 +1340,7 @@ async function loadData(manuale){
     (f.data || []).forEach(x => { if (x.chiave === 'copie') CFG.copie = Number(x.valore) || 1; });
     await caricaBolle(); await caricaSfridi(); await caricaBozze(); await caricaVT();
     if (DOC && !DOC.sfr && !DOC.edit_id && !DOC.dest_id && !String(DOC.ced[0]).trim() && !DOC.righe.some(r => rigaUsata(DOC, r))) { DOC = docGenerico(); paintSheet(); }
-    setStatus('Connesso', 'live');
+    statoOra();
     paintDestSelect(); paintAnni(); paintRubrica(); paintVT(); paintRegistro(); paintMerce(); paintNextNum(); $('im-copie').value = CFG.copie;
     if (manuale) toast('Dati aggiornati');
   } catch (e) {
@@ -1383,7 +1384,8 @@ async function sincronizza(manuale){
       await caricaVT(); paintVT();
       toast(cambiato ? 'Dati aggiornati' : 'Già tutto aggiornato');
     }
-  } catch (e) { if (manuale) toast('Aggiornamento non riuscito: ' + String(e.message || e), true); }
+    statoOra();
+  } catch (e) { setStatus('Connessione non riuscita: riprovo', 'err'); if (manuale) toast('Aggiornamento non riuscito: ' + String(e.message || e), true); }
   SYNC_BUSY = false;
 }
 $('btn-aggiorna').addEventListener('click', () => sincronizza(true));
