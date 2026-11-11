@@ -1014,6 +1014,7 @@ async function leggiTutto(t){
 function scarica(blob, nome){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
 function stampaOra(){ const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; }
 $('btn-backup').addEventListener('click', () => {
+  if (!(ME && ME.admin)) return;
   openModal(`<h2>Backup dei dati</h2><p style="line-height:1.5">Scarica una copia di sicurezza di <b>tutto</b>: DDT di tutti gli anni, rubrica destinatari, vettori, targhe, registri sfridi, bozze e contatori.</p>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
       <button class="btn" id="bk-json">💾 Backup completo (file .json)</button><div class="hint" style="margin:-4px 0 4px">Serve per ripristinare i dati in caso di problemi. Si conserva, non si apre con Excel.</div>
@@ -1458,7 +1459,7 @@ async function startApp(){
   if (!NOMI[email]) { showLogin(); return; }
   ME = { email, nome: NOMI[email], admin: email === 'admin@lotti.local' };
   $('utente').innerHTML = 'Utente: <b style="color:#fff">' + esc(ME.nome) + '</b>';
-  $('tab-imp').hidden = !ME.admin; $('tab-merce').hidden = !ME.admin;
+  $('tab-imp').hidden = !ME.admin; $('tab-merce').hidden = !ME.admin; $('btn-backup').hidden = !ME.admin;
   DOC = DOC || nuovoDoc(); paintSheet();
   await loadData(); route();
 }
