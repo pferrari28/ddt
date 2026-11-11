@@ -575,12 +575,27 @@ function paintDestSelect(){
   $('sel-dest').value = DOC && DOC.dest_id && DEST.some(x => x.id === DOC.dest_id) ? DOC.dest_id : '';
 }
 function applicaDestinatario(id){
-  const r = DEST.find(x => x.id === id);
-  if (DOC && DOC.edit_id) {   // in modifica: cambia solo destinatario/destinazione, il resto del DDT resta com'è
-    if (!r) { DOC.dest_id = ''; paintDestSelect(); return; }
-    const n = docDaDest(r);
-    Object.assign(DOC, { dest_id: r.id, ced: n.ced, dest: n.dest, causale: n.causale || DOC.causale, cod_scarico: n.cod_scarico, porto: n.porto || DOC.porto, vettore: n.vettore, a_mezzo: n.a_mezzo, annotazioni: n.annotazioni });
-    paintSheet(); paintDestSelect(); toast('Destinatario cambiato: ricontrolla i dati e salva'); return;
+  const r = DEST.find(x => x.id === id), f = x => String(x ?? '').trim();
+  if (DOC && !DOC.sfr) {   // cambio destinatario: righe, quantità, lotti, peso, colli, data restano; cambiano solo i dati del destinatario
+    const eraE = !!DOC.edit_id, vecchieDic = dicDi(DOC), vecchiaAnn = f(DOC.annotazioni);
+    if (!r) { Object.assign(DOC, { dest_id: '', ced: ['', '', ''], dest: ['', '', ''] }); paintSheet(); paintDestSelect(); return; }
+    const n = docDaDest(r), nd = r.dati || {};
+    // tolgo le diciture del destinatario precedente e metto quelle del nuovo sulle ultime righe
+    DOC.righe = DOC.righe.map(x => (vecchieDic.includes(f(x.desc)) && !f(x.kg) && !f(x.lotto)) ? { ...x, desc: '' } : x);
+    const dic = dicRiflusse(nd.diciture).slice(0, DOC.righe.length);
+    if (dic.length) {
+      const liberi = []; for (let k = DOC.righe.length - 1; k >= 0 && liberi.length < dic.length; k--) if (!rigaUsata(DOC, DOC.righe[k])) liberi.unshift(k);
+      if (liberi.length === dic.length) liberi.forEach((k, q) => { DOC.righe[k] = { ...DOC.righe[k], desc: dic[q] }; });
+    }
+    Object.assign(DOC, {
+      dest_id: r.id, ced: n.ced, dest: n.dest, causale: n.causale || DOC.causale, cod_scarico: n.cod_scarico || DOC.cod_scarico, porto: n.porto || DOC.porto,
+      annotazioni: f(n.annotazioni) || (vecchiaAnn && vecchiaAnn === f(annotDi({ dati: (DEST.find(x => x.id === DOC.dest_id) || { dati: {} }).dati })) ? '' : DOC.annotazioni),
+      copie_rub: nd.copie || null,
+    });
+    if (nd.copie) DOC.copie = nd.copie;
+    if (n.vettore.some(f)) { DOC.vettore = n.vettore; DOC.a_mezzo = nd.a_mezzo || DOC.a_mezzo; }
+    paintSheet(); paintDestSelect(); if (eraE) toast('Destinatario cambiato: ricontrolla i dati e salva');
+    return;
   }
   DOC = r ? docDaDest(r) : nuovoDoc();
   paintSheet(); paintDestSelect();
