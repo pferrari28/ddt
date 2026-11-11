@@ -1143,7 +1143,9 @@ $('btn-bozza').addEventListener('click', async () => {
   const r = DOC.bozza_id ? await sb.from('ddt_bozze').update(rec).eq('id', DOC.bozza_id).select().single() : await sb.from('ddt_bozze').insert(rec).select().single();
   if (r.error) { toast('Bozza non salvata: ' + r.error.message, true); return; }
   DOC.bozza_id = r.data.id; const i = BOZZE.findIndex(x => x.id === r.data.id); if (i >= 0) BOZZE[i] = r.data; else BOZZE.unshift(r.data);
-  paintBozze(); toast('Bozza salvata: la ritrovi in cima a questa pagina');
+  DOC = DOC.sfr ? nuovoDocSfr(DOC.sfr) : docGenerico();   // il modulo si svuota: la bozza resta nell'elenco in alto
+  paintSheet(); paintDestSelect(); paintNextNum(); paintBozze(); window.scrollTo(0, 0);
+  toast('Bozza salvata: il modulo è vuoto, la ritrovi nell\'elenco in alto');
 });
 
 // ---------- registro sfridi (bancali e consegne per cliente) ----------
