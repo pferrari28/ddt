@@ -1149,7 +1149,7 @@ $('btn-bozza').addEventListener('click', async () => {
 let SFR_ROWS = [], SFR_OK = true; const SFL = { anno: '' };
 async function caricaSfridi(){
   const r = await sb.from('ddt_sfridi').select('*').order('data', { ascending: true });
-  if (r.error) { SFR_OK = false; SFR_ROWS = []; return; } SFR_OK = true; SFR_ROWS = r.data || [];
+  if (r.error) { SFR_OK = false; SFR_ROWS = []; return; } SFR_OK = true; SFR_ROWS = r.data || []; LAST_S = maxTs(SFR_ROWS);
 }
 function sfRighe(key){
   const rows = SFR_ROWS.filter(x => x.cliente === key && !x.annullata).slice().sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : ((a.numero || 0) - (b.numero || 0)) || String(a.creato_il).localeCompare(String(b.creato_il))));
@@ -1311,7 +1311,7 @@ function route(){
     if (sfKey) { if (!DOC || DOC.sfr !== sfKey) { DOC = nuovoDocSfr(sfKey); paintSheet(); } }
     else if (DOC && DOC.sfr && !DOC.edit_id) { DOC = docGenerico(); paintSheet(); paintDestSelect(); }
   }
-  if (p === 'merce') paintMerce(); if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'vettori') paintVT(); if (p === 'compila') paintNextNum();
+  if (p === 'merce') paintMerce(); if (p === 'registro') paintRegistro(); if (p === 'rubrica') paintRubrica(); if (p === 'vettori') paintVT(); if (['registro', 'merce'].includes(p) || p.startsWith('sf-')) sincronizza(); if (p === 'compila') paintNextNum();
 }
 $('tabs').addEventListener('click', ev => { const b = ev.target.closest('.tab-btn'); if (b) go(b.dataset.p); });
 window.addEventListener('hashchange', route);
@@ -1319,7 +1319,7 @@ window.addEventListener('hashchange', route);
 // ---------- dati ----------
 async function caricaBolle(){
   const { data, error } = await sb.from('ddt_bolle').select('*').eq('anno', ANNO).order('numero', { ascending: false }).limit(5000);
-  if (error) throw error; BOLLE = data || [];
+  if (error) throw error; BOLLE = data || []; LAST_B = maxTs(BOLLE);
   ESCL = new Set(); ESCL_OK = true; MU.sel = new Set();
   if (ME && ME.admin) {
     const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO);
@@ -1348,7 +1348,43 @@ async function loadData(manuale){
     toast(/ddt_|relation|schema cache/i.test(m) ? 'Mancano le tabelle DDT: esegui lo script SQL «ddt_setup.sql» in Supabase.' : 'Errore nel caricamento: ' + m, true);
   }
 }
-$('btn-aggiorna').addEventListener('click', () => loadData(true));
+// ---------- aggiornamento leggero: scarica solo ciò che è cambiato ----------
+let LAST_B = '', LAST_S = '', SYNC_BUSY = false, SYNC_T = 0;
+function maxTs(rows){ let m = ''; for (const r of rows) if (r.aggiornato_il && (!m || Date.parse(r.aggiornato_il) > Date.parse(m))) m = r.aggiornato_il; return m; }
+function unisci(arr, nuovi){ const m = new Map(arr.map(x => [x.id, x])); nuovi.forEach(x => m.set(x.id, x)); return [...m.values()]; }
+async function conta(t, anno){ let q = sb.from(t).select('id', { count: 'exact', head: true }); if (anno) q = q.eq('anno', anno); const r = await q; if (r.error) throw r.error; return r.count; }
+async function sincronizza(manuale){
+  if (SYNC_BUSY || !ME) return; if (!manuale && Date.now() - SYNC_T < 20000) return;
+  if (!LAST_B && BOLLE.length) { if (manuale) await loadData(true); return; }   // colonna di controllo non ancora creata in Supabase (script SQL da rieseguire)
+  SYNC_BUSY = true; SYNC_T = Date.now(); let cambiato = false, annoSync = ANNO;
+  try {
+    const rb = LAST_B ? await sb.from('ddt_bolle').select('*').eq('anno', annoSync).gte('aggiornato_il', LAST_B) : await sb.from('ddt_bolle').select('*').eq('anno', annoSync);
+    if (rb.error) throw rb.error;
+    if (annoSync === ANNO && rb.data.length) { const prima = JSON.stringify(rb.data.map(x => x.id + x.aggiornato_il)); const noti = new Map(BOLLE.map(x => [x.id, x.aggiornato_il])); const nuovi = rb.data.filter(x => noti.get(x.id) !== x.aggiornato_il); if (nuovi.length) { BOLLE = unisci(BOLLE, nuovi).sort((a, b) => b.numero - a.numero); LAST_B = maxTs(BOLLE); cambiato = true; } }
+    if (annoSync === ANNO && await conta('ddt_bolle', ANNO) !== BOLLE.length) {   // qualcuno ha eliminato un DDT
+      const ids = await sb.from('ddt_bolle').select('id').eq('anno', ANNO); if (!ids.error) { const ok = new Set(ids.data.map(x => x.id)); BOLLE = BOLLE.filter(x => ok.has(x.id)); cambiato = true; }
+    }
+    if (SFR_OK) {
+      const rs = LAST_S ? await sb.from('ddt_sfridi').select('*').gte('aggiornato_il', LAST_S) : await sb.from('ddt_sfridi').select('*');
+      if (rs.error) throw rs.error;
+      const notiS = new Map(SFR_ROWS.map(x => [x.id, x.aggiornato_il])), nuoviS = rs.data.filter(x => notiS.get(x.id) !== x.aggiornato_il);
+      if (nuoviS.length) { SFR_ROWS = unisci(SFR_ROWS, nuoviS).sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0)); LAST_S = maxTs(SFR_ROWS); cambiato = true; }
+      if (await conta('ddt_sfridi') !== SFR_ROWS.length) { const ids = await sb.from('ddt_sfridi').select('id'); if (!ids.error) { const ok = new Set(ids.data.map(x => x.id)); SFR_ROWS = SFR_ROWS.filter(x => ok.has(x.id)); cambiato = true; } }
+    }
+    const c = await sb.from('ddt_contatori').select('*'); if (!c.error) { const nuovo = {}; (c.data || []).forEach(x => nuovo[x.anno] = x.ultimo); if (JSON.stringify(nuovo) !== JSON.stringify(CONT)) { CONT = nuovo; paintNextNum(); } }
+    if (BOZ_OK) { const nb = JSON.stringify(BOZZE.map(x => x.id + x.aggiornato_il)); await caricaBozze(); if (nb !== JSON.stringify(BOZZE.map(x => x.id + x.aggiornato_il))) paintBozze(); }
+    if (cambiato) {
+      if (ME && ME.admin) { const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO); if (!r.error) { ESCL = new Set(); (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga)); } }
+      paintRegistro(); paintMerce(); if (!$('sf-ledger').hidden) paintSfLedger();
+    }
+    if (manuale) toast(cambiato ? 'Dati aggiornati' : 'Già tutto aggiornato');
+  } catch (e) { if (manuale) toast('Aggiornamento non riuscito: ' + String(e.message || e), true); }
+  SYNC_BUSY = false;
+}
+$('btn-aggiorna').addEventListener('click', () => sincronizza(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sincronizza(); });
+window.addEventListener('focus', () => sincronizza());
+setInterval(() => { if (document.visibilityState === 'visible') sincronizza(); }, 120000);
 
 // ---------- accesso ----------
 let LOGIN_U = ''; try { LOGIN_U = localStorage.getItem('ddt_utente') || ''; } catch (e) {}

@@ -89,6 +89,19 @@ create table if not exists public.ddt_sfridi (
 );
 create index if not exists ddt_sfridi_cliente_idx on public.ddt_sfridi (cliente, data);
 
+-- Aggiornamento leggero: ogni riga ricorda quando è stata toccata l'ultima volta,
+-- così le pagine scaricano solo le novità invece di tutto l'archivio.
+alter table public.ddt_bolle add column if not exists aggiornato_il timestamptz not null default now();
+alter table public.ddt_sfridi add column if not exists aggiornato_il timestamptz not null default now();
+create index if not exists ddt_bolle_agg_idx on public.ddt_bolle (anno, aggiornato_il);
+create or replace function public.ddt_tocca() returns trigger language plpgsql as
+$$ begin new.aggiornato_il := now(); return new; end $$;
+drop trigger if exists ddt_bolle_tocca on public.ddt_bolle;
+create trigger ddt_bolle_tocca before insert or update on public.ddt_bolle for each row execute function public.ddt_tocca();
+drop trigger if exists ddt_sfridi_tocca on public.ddt_sfridi;
+create trigger ddt_sfridi_tocca before insert or update on public.ddt_sfridi for each row execute function public.ddt_tocca();
+
+
 -- Bozze: DDT salvati a metà (senza numero), da riprendere.
 create table if not exists public.ddt_bozze (
   id uuid primary key default gen_random_uuid(),
