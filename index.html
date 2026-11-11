@@ -239,6 +239,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="btn-xlsx">⬇ Esporta Excel</button>
           <button class="btn sec" id="btn-regprint">🖨️ Stampa / PDF</button>
+          <button class="btn sec" id="btn-backup" title="Copia di sicurezza di tutti i dati: DDT di tutti gli anni, rubrica, vettori, targhe, sfridi">💾 Backup</button>
         </div>
       </div>
       <div class="bar">
@@ -1004,6 +1005,40 @@ async function scaricaPdfBolla(row, tab){
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast('PDF scaricato: ' + nome);
 }
+
+// ---------- backup completo ----------
+async function leggiTutto(t){
+  const out = []; for (let a = 0; ; a += 1000) { const r = await sb.from(t).select('*').order('id').range(a, a + 999); if (r.error) throw new Error(t + ': ' + r.error.message); out.push(...(r.data || [])); if ((r.data || []).length < 1000) break; }
+  return out;
+}
+function scarica(blob, nome){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+function stampaOra(){ const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; }
+$('btn-backup').addEventListener('click', () => {
+  openModal(`<h2>Backup dei dati</h2><p style="line-height:1.5">Scarica una copia di sicurezza di <b>tutto</b>: DDT di tutti gli anni, rubrica destinatari, vettori, targhe, registri sfridi, bozze e contatori.</p>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:10px">
+      <button class="btn" id="bk-json">💾 Backup completo (file .json)</button><div class="hint" style="margin:-4px 0 4px">Serve per ripristinare i dati in caso di problemi. Si conserva, non si apre con Excel.</div>
+      <button class="btn sec" id="bk-xlsx">📊 Tutti i DDT in Excel (tutti gli anni)</button><div class="hint" style="margin:-4px 0 4px">Da leggere e consultare: testata dei DDT e righe di merce.</div>
+    </div><div class="acts"><button class="btn sec" id="bk-no">Chiudi</button></div>`);
+  $('bk-no').onclick = closeModal;
+  const lavora = async (btn, fn) => { const t = btn.textContent; btn.disabled = true; btn.textContent = 'Preparo il file…'; try { await fn(); } catch (e) { toast('Backup non riuscito: ' + String(e.message || e), true); } btn.disabled = false; btn.textContent = t; };
+  $('bk-json').onclick = ev => lavora(ev.target, async () => {
+    const nomi = ['ddt_bolle', 'ddt_destinatari', 'ddt_contatori', 'ddt_config', 'ddt_sfridi', 'ddt_vettori', 'ddt_targhe', 'ddt_bozze', 'ddt_merce_escluse'], tabelle = {};
+    for (const t of nomi) { try { tabelle[t] = t === 'ddt_contatori' || t === 'ddt_config' ? (await sb.from(t).select('*')).data || [] : await leggiTutto(t); } catch (e) { if (t === 'ddt_bolle') throw e; tabelle[t] = []; } }
+    const doc = { programma: 'DDT Trentin', creato_il: new Date().toISOString(), creato_da: ME ? ME.email : null, tabelle };
+    scarica(new Blob([JSON.stringify(doc)], { type: 'application/json' }), `DDT_backup_${stampaOra()}.json`);
+    toast(`Backup scaricato: ${tabelle.ddt_bolle.length} DDT`); closeModal();
+  });
+  $('bk-xlsx').onclick = ev => lavora(ev.target, async () => {
+    if (!window.XLSX) throw new Error('libreria Excel non caricata');
+    const tutte = (await leggiTutto('ddt_bolle')).sort((a, b) => a.anno - b.anno || a.numero - b.numero);
+    const testata = tutte.map(b => ({ 'Anno': b.anno, 'N.': b.numero, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Causale': b.causale || '', 'Kg': b.totale_kg == null ? '' : Number(b.totale_kg), 'Colli': b.colli ?? '', 'Copie': b.copie, 'Stato': b.annullata ? 'ANNULLATO' : 'Valido', 'Emesso da': NOMI[b.creato_da] || b.creato_da || '' }));
+    const righe = []; tutte.forEach(b => ((b.dati || {}).righe || []).forEach(r => { if (String(r.kg || '').trim() || String(r.lotto || '').trim()) righe.push({ 'Anno': b.anno, 'N.': b.numero, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Kg': numKg(r.kg) ?? '', 'Descrizione': r.desc || '', 'Lotto': r.lotto || '', 'Stato': b.annullata ? 'ANNULLATO' : 'Valido' }); }));
+    const wb = XLSX.utils.book_new(), w1 = XLSX.utils.json_to_sheet(testata), w2 = XLSX.utils.json_to_sheet(righe);
+    w1['!cols'] = [6, 6, 11, 30, 30, 12, 7, 7, 11, 12].map(x => ({ wch: x })); w2['!cols'] = [6, 6, 11, 30, 12, 44, 20, 11].map(x => ({ wch: x }));
+    XLSX.utils.book_append_sheet(wb, w1, 'Registro DDT'); XLSX.utils.book_append_sheet(wb, w2, 'Righe');
+    XLSX.writeFile(wb, `DDT_tutti_${stampaOra()}.xlsx`); toast(`Excel creato: ${tutte.length} DDT`); closeModal();
+  });
+});
 
 // ---------- registro ----------
 const REG = { q: '', da: '', a: '', st: '' };
