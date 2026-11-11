@@ -576,9 +576,9 @@ function paintDestSelect(){
   $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + DEST.map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
   $('sel-dest').value = DOC && DOC.dest_id && DEST.some(x => x.id === DOC.dest_id) ? DOC.dest_id : '';
 }
-function applicaDestinatario(id){
+function applicaDestinatario(id, fresco){   // fresco = nuovo DDT vuoto per quel destinatario; altrimenti si tengono i dati già inseriti
   const r = DEST.find(x => x.id === id), f = x => String(x ?? '').trim();
-  if (DOC && !DOC.sfr) {   // cambio destinatario: righe, quantità, lotti, peso, colli, data restano; cambiano solo i dati del destinatario
+  if (DOC && !DOC.sfr && !fresco) {   // cambio destinatario: righe, quantità, lotti, peso, colli, data restano; cambiano solo i dati del destinatario
     const eraE = !!DOC.edit_id, vecchieDic = dicDi(DOC), vecchiaAnn = f(DOC.annotazioni);
     if (!r) { Object.assign(DOC, { dest_id: '', ced: ['', '', ''], dest: ['', '', ''] }); paintSheet(); paintDestSelect(); return; }
     const n = docDaDest(r), nd = r.dati || {};
@@ -858,7 +858,7 @@ function paintRubrica(){
 $('rb-q').addEventListener('input', paintRubrica);
 $('rb-wrap').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]'); if (!b) return; const id = b.dataset.id;
-  if (b.dataset.a === 'usa') { applicaDestinatario(id); go('compila'); }
+  if (b.dataset.a === 'usa') { applicaDestinatario(id, true); go('compila'); }
   else if (b.dataset.a === 'mod') apriFormDest(id);
   else if (b.dataset.a === 'del') {
     const r = DEST.find(x => x.id === id);
@@ -934,7 +934,7 @@ async function salvaEStampa(stampa){
   BUSY = false; $('btn-stampa').disabled = false; $('btn-salva-solo').disabled = false;
   if (d.bozza_id) { try { await sb.from('ddt_bozze').delete().eq('id', d.bozza_id); BOZZE = BOZZE.filter(x => x.id !== d.bozza_id); } catch (e) {} }
   await caricaSfridi();
-  if (d.sfr && !editing) { DOC = nuovoDocSfr(d.sfr); paintSheet(); } else if (editing || !d.dest_id) { DOC = docGenerico(); paintSheet(); paintDestSelect(); } else applicaDestinatario(d.dest_id);
+  if (d.sfr && !editing) { DOC = nuovoDocSfr(d.sfr); paintSheet(); } else if (editing || !d.dest_id) { DOC = docGenerico(); paintSheet(); paintDestSelect(); } else applicaDestinatario(d.dest_id, true);
   paintNextNum(); paintRegistro();
   if (editing) go('registro');
 }
@@ -1377,7 +1377,12 @@ async function sincronizza(manuale){
       if (ME && ME.admin) { const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO); if (!r.error) { ESCL = new Set(); (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga)); } }
       paintRegistro(); paintMerce(); if (!$('sf-ledger').hidden) paintSfLedger();
     }
-    if (manuale) toast(cambiato ? 'Dati aggiornati' : 'Già tutto aggiornato');
+    if (manuale) {   // col tasto si rileggono anche rubrica, vettori e targhe (elenchi piccoli)
+      const d = await sb.from('ddt_destinatari').select('*').order('nome');
+      if (!d.error) { DEST = d.data || []; const sel = $('sel-dest').value; paintDestSelect(); paintRubrica(); if (sel) $('sel-dest').value = sel; }
+      await caricaVT(); paintVT();
+      toast(cambiato ? 'Dati aggiornati' : 'Già tutto aggiornato');
+    }
   } catch (e) { if (manuale) toast('Aggiornamento non riuscito: ' + String(e.message || e), true); }
   SYNC_BUSY = false;
 }
