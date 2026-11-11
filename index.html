@@ -349,7 +349,7 @@ const PARTENZA = 'Pegognaga (MN)';
 const N_RIGHE = 19;
 // Clienti sfridi: modulo dedicato (colonne, descrizione fissa, dicitura) + registro consegne/bancali
 const SFR = {
-  padania: { nome: 'Padania Alimenti', n: 19, layout: 'matr', desc: 'RITAGLI DI FORMAGGI NAZIONALI "CROSTE"', coda: [],
+  padania: { nome: 'Padania Alimenti', copie: 3, n: 19, layout: 'matr', desc: 'RITAGLI DI FORMAGGI NAZIONALI "CROSTE"', coda: [],
     base: { ced: ['Padania Alimenti S.r.l.', 'Via Enrico Fermi, 79', '26041 Casalmaggiore (CR)'], dest: ['', '', ''], causale: 'VENDITA', cod_scarico: '1950', a_mezzo: 'vettore',
             vettore: ['Autotrasporti Monticelli', 'Vicolo del Chiodo, 6', '46017 Rivarolo Mantovano (MN)'], targa: '' } },
   rossi: { nome: 'Rossi F.lli', n: 12, layout: 'matr', desc: 'SFRIDI DI LAVORAZIONE DI PR/RE', coda: ['SFRIDI DI PARMIGIANO-REGGIANO DESTINATI AD ULTERIORE LAVORAZIONE', 'IN STABILIMENTO RICONOSCIUTO DA OCQ-PR'],
@@ -476,7 +476,7 @@ function nuovoDoc(dati){
 }
 function docDaDest(r){ const d = nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }); d.copie_rub = r.dati.copie || null; return d; }
 function docGenerico(){ const r = DEST.find(x => /trentin/i.test(x.nome)); return r ? docDaDest(r) : nuovoDoc(); }   // destinatario predefinito: Trentin
-function nuovoDocSfr(key){ const c = SFR[key]; return nuovoDoc({ ...c.base, n: c.n, sfr: key, aspetto: 'A VISTA', copie: CFG.copie }); }
+function nuovoDocSfr(key){ const c = SFR[key]; return nuovoDoc({ ...c.base, n: c.n, sfr: key, aspetto: 'A VISTA', copie: c.copie || CFG.copie }); }
 function rigaUsata(d, r){ const f = x => String(x ?? '').trim(); return d.sfr ? !!(f(r.kg) || f(r.lotto) || f(r.matr) || f(r.mese) || f(r.tag)) : !!(f(r.kg) || f(r.desc) || f(r.lotto)); }
 function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = kgRiga(r); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
 function pesoNum(d){ if (d.peso_manuale) { const n = numKg(d.peso); return n === null || Number.isNaN(n) ? null : n; } return sommaKg(d); }
