@@ -239,6 +239,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" id="btn-xlsx">⬇ Esporta Excel</button>
           <button class="btn sec" id="btn-regprint">🖨️ Stampa / PDF</button>
+          <button class="btn sec" id="btn-zip" hidden title="Scarica in un unico file ZIP i PDF dei DDT mostrati nel registro (solo Paolo)">🗜️ PDF in ZIP</button>
           <button class="btn sec" id="btn-backup" title="Copia di sicurezza di tutti i dati: DDT di tutti gli anni, rubrica, vettori, targhe, sfridi">💾 Backup</button>
         </div>
       </div>
@@ -969,7 +970,8 @@ function vediBolla(row){
     b.disabled = false;
   };
 }
-async function tabellaInJpeg(tab, scala){
+const PDF_BIT = 4, PDF_SCALA = 2;   // PDF leggero: grigi a 16 livelli (4 bit), circa 200 dpi, compressi
+async function tabellaInJpeg(tab, scala = PDF_SCALA, bits = PDF_BIT){
   const P = 4, w = Math.ceil(tab.offsetWidth) + 2 * P, h = Math.ceil(tab.offsetHeight) + 2 * P;   // margine bianco: il bordo esterno non viene tagliato
   let css = ''; for (const sh of document.styleSheets) { try { for (const r of sh.cssRules) if (r.type === 1 && /\.sheet|^table|^td|^th|^\*/.test(r.selectorText || '')) css += r.cssText + '\n'; } catch (e) {} }
   const box = document.createElement('div'); box.appendChild(tab.cloneNode(true));
@@ -981,10 +983,12 @@ async function tabellaInJpeg(tab, scala){
   await new Promise((ok, ko) => { img.onload = ok; img.onerror = () => ko(new Error('immagine non generata')); });
   const cv = document.createElement('canvas'); cv.width = w * scala; cv.height = h * scala;
   const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
-  const bin = atob(cv.toDataURL('image/jpeg', 0.93).split(',')[1]); const jpg = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) jpg[i] = bin.charCodeAt(i);
-  return { jpg, pw: cv.width, ph: cv.height, w, h };
+  const pw = cv.width, ph = cv.height, d = cx.getImageData(0, 0, pw, ph).data, lv = (1 << bits) - 1, per = 8 / bits, rb = Math.ceil(pw / per), raw = new Uint8Array(rb * ph);
+  for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) { const i = (y * pw + x) * 4, g = Math.round((d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11) / 255 * lv); raw[y * rb + ((x / per) | 0)] |= g << (8 - bits - (x % per) * bits); }
+  const jpg = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate'))).arrayBuffer());
+  return { jpg, pw, ph, w, h, bits };
 }
-function pdfDaJpeg({ jpg, pw, ph, w, h }){   // una pagina A4 con l'immagine del DDT (margini 10 mm / 8 mm come in stampa)
+function pdfDaJpeg({ jpg, pw, ph, w, h, bits }){   // una pagina A4 con l'immagine del DDT (margini 10 mm / 8 mm come in stampa)
   const enc = new TextEncoder(), parts = [], off = []; let len = 0;
   const push = x => { const u = typeof x === 'string' ? enc.encode(x) : x; parts.push(u); len += u.length; };
   const W = 595.28, H = 841.89, mx = 28.35, my = 22.68, iw = W - 2 * mx, ih = Math.min(iw * h / w, H - 2 * my);
@@ -993,18 +997,67 @@ function pdfDaJpeg({ jpg, pw, ph, w, h }){   // una pagina A4 con l'immagine del
   obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
   obj(2, () => push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'));
   obj(3, () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`));
-  obj(4, () => { push(`<< /Type /XObject /Subtype /Image /Width ${pw} /Height ${ph} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); push(jpg); push('\nendstream'); });
+  obj(4, () => { push(`<< /Type /XObject /Subtype /Image /Width ${pw} /Height ${ph} /ColorSpace /DeviceGray /BitsPerComponent ${bits} /Filter /FlateDecode /Length ${jpg.length} >>\nstream\n`); push(jpg); push('\nendstream'); });
   obj(5, () => push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
   const x0 = len; push('xref\n0 6\n0000000000 65535 f \n'); for (let n = 1; n <= 5; n++) push(String(off[n]).padStart(10, '0') + ' 00000 n \n');
   push(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${x0}\n%%EOF`);
   return new Blob(parts, { type: 'application/pdf' });
 }
 async function scaricaPdfBolla(row, tab){
-  const blob = pdfDaJpeg(await tabellaInJpeg(tab, 2.5));
+  const blob = pdfDaJpeg(await tabellaInJpeg(tab));
   const nome = `DDT_${row.numero}_${row.anno}_${String(row.dest_nome || '').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30)}.pdf`;
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast('PDF scaricato: ' + nome);
 }
+
+// ---------- ZIP con i PDF dei DDT mostrati nel registro ----------
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8){ let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+async function creaZip(file){   // file = [{ nome, blob }]; zip senza compressione (i PDF contengono già immagini JPEG)
+  const enc = new TextEncoder(), parti = [], centrale = []; let pos = 0;
+  const d = new Date(), dosT = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), dosD = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  for (const f of file) {
+    const dati = new Uint8Array(await f.blob.arrayBuffer()), nome = enc.encode(f.nome), crc = crc32(dati);
+    const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint16(10, dosT, true); h.setUint16(12, dosD, true); h.setUint32(14, crc, true); h.setUint32(18, dati.length, true); h.setUint32(22, dati.length, true); h.setUint16(26, nome.length, true); h.setUint16(28, 0, true);
+    parti.push(h.buffer, nome, dati);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, dosT, true); c.setUint16(14, dosD, true); c.setUint32(16, crc, true); c.setUint32(20, dati.length, true); c.setUint32(24, dati.length, true); c.setUint16(28, nome.length, true); c.setUint32(42, pos, true);
+    centrale.push(c.buffer, nome); pos += 30 + nome.length + dati.length;
+  }
+  const cLen = centrale.reduce((a, b) => a + (b.byteLength ?? b.length), 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, file.length, true); e.setUint16(10, file.length, true); e.setUint32(12, cLen, true); e.setUint32(16, pos, true);
+  return new Blob([...parti, ...centrale, e.buffer], { type: 'application/zip' });
+}
+function nomePdfBolla(b){ return `DDT_${b.numero}_${b.anno}_${String(b.dest_nome || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30)}.pdf`; }
+$('btn-zip').addEventListener('click', () => {
+  if (!(ME && ME.admin)) return;
+  const lista = bolleFiltrate().filter(b => !b.annullata).sort((a, b) => a.numero - b.numero);
+  if (!lista.length) { toast('Nessun DDT valido nel registro con questi filtri.', true); return; }
+  const stima = Math.round(lista.length * 0.13 * 10) / 10;
+  openModal(`<h2>PDF dei DDT in un unico ZIP</h2><p style="line-height:1.5">Verranno creati <b>${lista.length} PDF</b> (i DDT mostrati ora nel registro, esclusi gli annullati), con nome tipo <code>DDT_2354_2026_TRENTIN_SPA.pdf</code>. Peso indicativo: ${stima < 1 ? '<1' : stima} MB. I PDF si creano nel tuo PC, senza traffico dal database.${lista.length > 300 ? '<br><b>Sono molti: conviene restringere le date.</b>' : ''}</p>
+    <div id="zp-bar" hidden style="height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:10px 0"><div id="zp-fill" style="height:100%;width:0;background:var(--accent,#2a6fdb)"></div></div><div class="hint" id="zp-txt"></div>
+    <div class="acts"><button class="btn sec" id="zp-no">Chiudi</button><button class="btn" id="zp-si">Crea lo ZIP</button></div>`);
+  let stop = false; $('zp-no').onclick = () => { stop = true; closeModal(); };
+  $('zp-si').onclick = async () => {
+    const si = $('zp-si'); si.disabled = true; $('zp-bar').hidden = false;
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-9999px;top:0;background:#fff'; document.body.appendChild(box);
+    const file = [];
+    try {
+      for (let i = 0; i < lista.length && !stop; i++) {
+        const b = lista[i]; box.innerHTML = htmlBolla(b);
+        const j = await tabellaInJpeg(box.querySelector('table.sheet'));
+        file.push({ nome: nomePdfBolla(b), blob: pdfDaJpeg(j) });
+        $('zp-fill').style.width = Math.round((i + 1) / lista.length * 100) + '%'; $('zp-txt').textContent = `Creo i PDF… ${i + 1} di ${lista.length}`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+      if (!stop) {
+        $('zp-txt').textContent = 'Preparo lo ZIP…';
+        const da = lista[0].data, a = lista[lista.length - 1].data;
+        scarica(await creaZip(file), `DDT_PDF_${da}_${a}.zip`); toast(`ZIP scaricato: ${file.length} PDF`); closeModal();
+      }
+    } catch (e) { toast('ZIP non creato: ' + String(e.message || e), true); si.disabled = false; }
+    box.remove();
+  };
+});
 
 // ---------- backup completo ----------
 async function leggiTutto(t){
@@ -1459,7 +1512,7 @@ async function startApp(){
   if (!NOMI[email]) { showLogin(); return; }
   ME = { email, nome: NOMI[email], admin: email === 'admin@lotti.local' };
   $('utente').innerHTML = 'Utente: <b style="color:#fff">' + esc(ME.nome) + '</b>';
-  $('tab-imp').hidden = !ME.admin; $('tab-merce').hidden = !ME.admin; $('btn-backup').hidden = !ME.admin;
+  $('tab-imp').hidden = !ME.admin; $('tab-merce').hidden = !ME.admin; $('btn-backup').hidden = !ME.admin; $('btn-zip').hidden = !ME.admin;
   DOC = DOC || nuovoDoc(); paintSheet();
   await loadData(); route();
 }
