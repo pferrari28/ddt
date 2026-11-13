@@ -477,7 +477,9 @@ function nuovoDoc(dati){
   dic.forEach((t, i) => { d.righe[d.righe.length - dic.length + i].desc = t; });
   return d;
 }
-function docDaDest(r){ const d = nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }); d.copie_rub = r.dati.copie || null; return d; }
+const DESC_INIZIALI = [{ re: /ecologica/i, righe: ['MATERIALE DI CATEGORIA 3 CODICE 1990', 'LOTTI DI LAVORAZIONE:'] }];   // testo proposto sulle prime righe della descrizione, per destinatario
+function descIniziali(nome){ const x = DESC_INIZIALI.find(y => y.re.test(nome || '')); return x ? x.righe : []; }
+function docDaDest(r){ const d = nuovoDoc({ ...r.dati, dest_id: r.id, copie: r.dati.copie || CFG.copie }); descIniziali(r.nome).forEach((t, i) => { if (d.righe[i]) d.righe[i].desc = t; }); d.copie_rub = r.dati.copie || null; return d; }
 function docGenerico(){ const r = DEST.find(x => /trentin/i.test(x.nome)); return r ? docDaDest(r) : nuovoDoc(); }   // destinatario predefinito: Trentin
 function nuovoDocSfr(key){ const c = SFR[key]; return nuovoDoc({ ...c.base, n: c.n, sfr: key, aspetto: 'A VISTA', copie: c.copie || CFG.copie }); }
 function rigaUsata(d, r){ const f = x => String(x ?? '').trim(); return d.sfr ? !!(f(r.kg) || f(r.lotto) || f(r.matr) || f(r.mese) || f(r.tag)) : !!(f(r.kg) || f(r.desc) || f(r.lotto)); }
@@ -587,6 +589,10 @@ function applicaDestinatario(id, fresco){   // fresco = nuovo DDT vuoto per quel
     const n = docDaDest(r), nd = r.dati || {};
     // tolgo le diciture del destinatario precedente e metto quelle del nuovo sulle ultime righe
     DOC.righe = DOC.righe.map(x => (vecchieDic.includes(f(x.desc)) && !f(x.kg) && !f(x.lotto)) ? { ...x, desc: '' } : x);
+    // stesso discorso per il testo iniziale (prime righe): via quello del vecchio destinatario, dentro quello del nuovo
+    const vecchieIni = descIniziali((DEST.find(x => x.id === DOC.dest_id) || {}).nome), nuoveIni = descIniziali(r.nome);
+    vecchieIni.forEach((t, i) => { const x = DOC.righe[i]; if (x && f(x.desc) === t && !f(x.kg) && !f(x.lotto)) DOC.righe[i] = { ...x, desc: '' }; });
+    if (nuoveIni.length && nuoveIni.every((t, i) => DOC.righe[i] && !rigaUsata(DOC, DOC.righe[i]))) nuoveIni.forEach((t, i) => { DOC.righe[i] = { ...DOC.righe[i], desc: t }; });
     const dic = dicRiflusse(nd.diciture).slice(0, DOC.righe.length);
     if (dic.length) {
       const liberi = []; for (let k = DOC.righe.length - 1; k >= 0 && liberi.length < dic.length; k--) if (!rigaUsata(DOC, DOC.righe[k])) liberi.unshift(k);
@@ -1088,7 +1094,7 @@ $('btn-backup').addEventListener('click', () => {
     const testata = tutte.map(b => ({ 'Anno': b.anno, 'N.': b.numero, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Causale': b.causale || '', 'Kg': b.totale_kg == null ? '' : Number(b.totale_kg), 'Colli': b.colli ?? '', 'Copie': b.copie, 'Stato': b.annullata ? 'ANNULLATO' : 'Valido', 'Emesso da': NOMI[b.creato_da] || b.creato_da || '' }));
     const righe = []; tutte.forEach(b => ((b.dati || {}).righe || []).forEach(r => { if (String(r.kg || '').trim() || String(r.lotto || '').trim()) righe.push({ 'Anno': b.anno, 'N.': b.numero, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Kg': numKg(r.kg) ?? '', 'Descrizione': r.desc || '', 'Lotto': r.lotto || '', 'Stato': b.annullata ? 'ANNULLATO' : 'Valido' }); }));
     const wb = XLSX.utils.book_new(), w1 = XLSX.utils.json_to_sheet(testata), w2 = XLSX.utils.json_to_sheet(righe);
-    w1['!cols'] = [6, 6, 11, 30, 30, 12, 7, 7, 11, 12].map(x => ({ wch: x })); w2['!cols'] = [6, 6, 11, 30, 12, 44, 20, 11].map(x => ({ wch: x }));
+    w1['!cols'] = [6, 6, 11, 7, 30, 30, 12, 7, 7, 11, 12].map(x => ({ wch: x })); w2['!cols'] = [6, 6, 11, 30, 12, 44, 20, 11].map(x => ({ wch: x }));
     XLSX.utils.book_append_sheet(wb, w1, 'Registro DDT'); XLSX.utils.book_append_sheet(wb, w2, 'Righe');
     XLSX.writeFile(wb, `DDT_tutti_${stampaOra()}.xlsx`); toast(`Excel creato: ${tutte.length} DDT`); closeModal();
   });
@@ -1109,14 +1115,15 @@ function bolleFiltrate(){
     return true;
   });
 }
+function oraBolla(b){ const d = b.creato_il ? new Date(b.creato_il) : null; return d && !isNaN(d) ? d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' }) : ''; }   // ora di compilazione del DDT
 function paintRegistro(){
   const lista = bolleFiltrate();
   const tot = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.totale_kg) || 0), 0);
   const colli = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.colli) || 0), 0);
-  $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th class="n">N.</th><th class="n">Data</th><th>Destinatario</th><th>Causale</th><th class="n">Kg</th><th class="n">Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
-    lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
+  $('rg-wrap').innerHTML = lista.length ? `<table class="t"><thead><tr><th class="n">N.</th><th class="n">Data</th><th class="n">Ora</th><th>Destinatario</th><th>Causale</th><th class="n">Kg</th><th class="n">Colli</th><th>Utente</th><th></th></tr></thead><tbody>${
+    lista.map(b => `<tr class="${b.annullata ? 'annullata' : ''}"><td class="n"><b>${b.numero}</b></td><td class="n">${fmtData(b.data)}</td><td class="n">${oraBolla(b)}</td><td>${esc(b.dest_nome)}</td><td>${esc(b.causale || '')}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${esc(NOMI[b.creato_da] || b.creato_da || '')}</td>
       <td class="act st">${b.annullata ? '<span class="badge ann">ANNULLATO</span> ' : ''}<button class="btn small" data-a="vedi" data-id="${b.id}" title="Visualizza il DDT e scaricalo in PDF">👁 Vedi</button> ${b.annullata ? '' : `<button class="btn small sec" data-a="mod" data-id="${b.id}">Modifica</button> `}<button class="btn small sec" data-a="rist" data-id="${b.id}">Ristampa</button> <button class="btn small sec" data-a="dup" data-id="${b.id}">Duplica</button> <button class="btn small sec" data-a="ann" data-id="${b.id}">${b.annullata ? 'Ripristina' : 'Annulla'}</button>${ME && ME.admin ? ` <button class="btn small danger" data-a="elim" data-id="${b.id}" title="Elimina definitivamente (solo Paolo)">Elimina</button>` : ''}</td></tr>`).join('')
-  }</tbody><tfoot><tr><td colspan="4">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
+  }</tbody><tfoot><tr><td colspan="5">Totale (${lista.filter(b => !b.annullata).length} DDT validi)</td><td class="n">${fmtIT(tot, 0, 2)}</td><td class="n">${colli}</td><td colspan="2"></td></tr></tfoot></table>`
     : '<div class="empty">Nessun DDT per questi filtri.</div>';
 }
 function paintAnni(){
@@ -1177,10 +1184,10 @@ $('rg-wrap').addEventListener('click', async ev => {
 $('btn-xlsx').addEventListener('click', () => {
   if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
   const lista = bolleFiltrate().slice().sort((a, b) => a.numero - b.numero);
-  const testata = lista.map(b => ({ 'N.': b.numero, 'Anno': b.anno, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Causale': b.causale || '', 'Kg': b.totale_kg == null ? '' : Number(b.totale_kg), 'Colli': b.colli ?? '', 'Copie': b.copie, 'Stato': b.annullata ? 'ANNULLATO' : 'Valido', 'Emesso da': NOMI[b.creato_da] || b.creato_da || '' }));
+  const testata = lista.map(b => ({ 'N.': b.numero, 'Anno': b.anno, 'Data': fmtData(b.data), 'Ora': oraBolla(b), 'Destinatario': b.dest_nome, 'Causale': b.causale || '', 'Kg': b.totale_kg == null ? '' : Number(b.totale_kg), 'Colli': b.colli ?? '', 'Copie': b.copie, 'Stato': b.annullata ? 'ANNULLATO' : 'Valido', 'Emesso da': NOMI[b.creato_da] || b.creato_da || '' }));
   const righe = []; lista.forEach(b => (b.dati.righe || []).forEach(r => righe.push({ 'N.': b.numero, 'Data': fmtData(b.data), 'Destinatario': b.dest_nome, 'Kg': numKg(r.kg) ?? '', 'Descrizione': r.desc || '', 'Lotto': r.lotto || '', 'Stato': b.annullata ? 'ANNULLATO' : 'Valido' })));
   const wb = XLSX.utils.book_new();
-  const w1 = XLSX.utils.json_to_sheet(testata); w1['!cols'] = [6, 6, 11, 30, 30, 12, 7, 7, 11, 12].map(x => ({ wch: x }));
+  const w1 = XLSX.utils.json_to_sheet(testata); w1['!cols'] = [6, 6, 11, 7, 30, 30, 12, 7, 7, 11, 12].map(x => ({ wch: x }));
   const w2 = XLSX.utils.json_to_sheet(righe); w2['!cols'] = [6, 11, 30, 12, 44, 20, 11].map(x => ({ wch: x }));
   XLSX.utils.book_append_sheet(wb, w1, 'Registro DDT'); XLSX.utils.book_append_sheet(wb, w2, 'Righe');
   XLSX.writeFile(wb, `Registro_DDT_${ANNO}.xlsx`);
@@ -1188,8 +1195,8 @@ $('btn-xlsx').addEventListener('click', () => {
 $('btn-regprint').addEventListener('click', () => {
   const lista = bolleFiltrate().slice().sort((a, b) => a.numero - b.numero);
   const tot = lista.filter(b => !b.annullata).reduce((s, b) => s + (Number(b.totale_kg) || 0), 0);
-  $('reg-print').innerHTML = `<h1>Registro DDT ${ANNO} · Trentin Spa – Pegognaga</h1><table><thead><tr><th>N.</th><th>Data</th><th>Destinatario</th><th>Kg</th><th>Colli</th><th>Stato</th></tr></thead><tbody>${
-    lista.map(b => `<tr><td class="n">${b.numero}</td><td class="n">${fmtData(b.data)}</td><td>${esc(b.dest_nome)}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${b.annullata ? 'ANNULLATO' : ''}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="5">Totale kg (esclusi annullati)</th><th class="n">${fmtIT(tot, 0, 2)}</th><th colspan="2"></th></tr></tfoot></table>`;
+  $('reg-print').innerHTML = `<h1>Registro DDT ${ANNO} · Trentin Spa – Pegognaga</h1><table><thead><tr><th>N.</th><th>Data</th><th>Ora</th><th>Destinatario</th><th>Kg</th><th>Colli</th><th>Stato</th></tr></thead><tbody>${
+    lista.map(b => `<tr><td class="n">${b.numero}</td><td class="n">${fmtData(b.data)}</td><td class="n">${oraBolla(b)}</td><td>${esc(b.dest_nome)}</td><td class="n">${b.totale_kg == null ? '' : fmtIT(b.totale_kg, 0, 2)}</td><td class="n">${b.colli ?? ''}</td><td>${b.annullata ? 'ANNULLATO' : ''}</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="4">Totale kg (esclusi annullati)</th><th class="n">${fmtIT(tot, 0, 2)}</th><th colspan="2"></th></tr></tfoot></table>`;
   document.body.classList.add('printing-reg');
   const fine = () => { document.body.classList.remove('printing-reg'); window.removeEventListener('afterprint', fine); };
   window.addEventListener('afterprint', fine);
