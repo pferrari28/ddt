@@ -649,8 +649,8 @@ SHEET.addEventListener('input', ev => {
   if (el.dataset.kg) fmtMigliaia(el);
   if (el.dataset.peso) { DOC.peso = el.value; DOC.peso_manuale = el.value.trim() !== ''; ricalcolaPeso(); if (!DOC.peso_manuale) DOC.peso = ''; return; }
   // completamento automatico come Excel: propone quanto scritto nelle righe sopra
-  if (/^righe\.\d+\.(desc|lotto)$/.test(k) && el.type === 'text' && ev.inputType && ev.inputType.startsWith('insert') && ev.inputType !== 'insertReplacementText' && el.selectionStart === el.value.length && el.value) {
-    const [, ri, campo] = /^righe\.(\d+)\.(desc|lotto)$/.exec(k), typed = el.value;
+  if (/^righe\.\d+\.(desc)$/.test(k) && el.type === 'text' && ev.inputType && ev.inputType.startsWith('insert') && ev.inputType !== 'insertReplacementText' && el.selectionStart === el.value.length && el.value) {
+    const [, ri, campo] = /^righe\.(\d+)\.(desc)$/.exec(k), typed = el.value;
     for (let j = Number(ri) - 1; j >= 0; j--) { const c = String((DOC.righe[j] || {})[campo] || '').toUpperCase(); if (c.length > typed.length && c.startsWith(typed.toUpperCase())) { el.value = typed + c.slice(typed.length); el.setSelectionRange(typed.length, c.length); break; } }
   }
   // vettore: «a mezzo» passa su vettore; scelta dall'elenco compila le altre righe
