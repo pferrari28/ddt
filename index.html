@@ -77,7 +77,8 @@ table.t th.w{width:100%;}
 table.t th.c, table.t td.c{width:1%;}
 table.t td{vertical-align:middle;}
 table.t.tm th, table.t.tm td{padding-left:10px;padding-right:10px;}
-table.t td.ell{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+table.t.tm th.w, table.t.tm td.act{width:100%;text-align:right;}
+table.t td.ell{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 table.t td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
 table.t td.act{white-space:nowrap;text-align:right;}
 table.t tfoot td{font-weight:700;background:var(--head);}
@@ -1342,8 +1343,8 @@ function paintMerce(){
   const tot = valide.reduce((s, r) => s + (r.kg || 0), 0);
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
   if (!ESCL_OK) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
-  $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">N. DDT</th><th class="n">Data</th><th class="n">Kg</th><th class="w">Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th></th></tr></thead><tbody>${
-    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n"><b>${r.numero}</b></td><td class="n">${fmtData(r.data)}</td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td>${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
+  $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">N. DDT</th><th class="n">Data</th><th class="n">Kg</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w"></th></tr></thead><tbody>${
+    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n"><b>${r.numero}</b></td><td class="n">${fmtData(r.data)}</td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
       <td class="act st">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="3">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 2, 2)}</td><td colspan="5"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
 }
