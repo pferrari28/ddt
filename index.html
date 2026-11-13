@@ -1343,8 +1343,8 @@ function paintMerce(){
   const tot = valide.reduce((s, r) => s + (r.kg || 0), 0);
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
   if (!ESCL_OK) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
-  $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">N. DDT</th><th class="n">Data</th><th class="n">Kg</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w"></th></tr></thead><tbody>${
-    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n"><b>${r.numero}</b></td><td class="n">${fmtData(r.data)}</td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
+  $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w"></th></tr></thead><tbody>${
+    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
       <td class="act st">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="3">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 2, 2)}</td><td colspan="5"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
 }
@@ -1379,15 +1379,15 @@ $('mu-xlsx').addEventListener('click', () => {
   if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
   const righe = merceFiltrata().filter(r => !r.tolta);
   if (!righe.length) { toast('Non ci sono righe da esportare.', true); return; }
-  const intest = ['N. DDT', 'Data', 'Kg', 'Descrizione', 'Lotto', 'Destinatario', 'Destinazione'];
+  const intest = ['Data', 'N. DDT', 'Kg', 'Descrizione', 'Lotto', 'Destinatario', 'Destinazione'];
   const serie = iso => { const [y, m, d] = String(iso).split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };   // data vera di Excel
   const ws = XLSX.utils.aoa_to_sheet([intest, ...righe.map(r => [
-    r.numero,
     { t: 'n', v: serie(r.data), z: 'dd/mm/yyyy' },
+    r.numero,
     r.kg == null ? '' : { t: 'n', v: Number(r.kg), z: '#,##0.00' },
     r.desc, r.lotto, r.destinatario, r.destinazione,
   ])]);
-  ws['!cols'] = [8, 12, 14, 48, 18, 34, 44].map(x => ({ wch: x }));
+  ws['!cols'] = [12, 8, 14, 48, 18, 34, 44].map(x => ({ wch: x }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Merce uscita'); XLSX.writeFile(wb, `Merce_uscita_${ANNO}.xlsx`);
 });
 
