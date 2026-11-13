@@ -264,7 +264,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       </div>
       <div class="bar">
         <div><label class="l">Anno</label><select class="f" id="mu-anno" style="width:100px"></select></div>
-        <div class="grow"><label class="l">Cerca (descrizione, lotto, numero)</label><input class="f" id="mu-q" placeholder="es. croste, 26P1234..."></div>
+        <div class="grow"><label class="l">Cerca (descrizione, lotto, numero, kg, destinatario, destinazione)</label><input class="f" id="mu-q" placeholder="es. croste, 26P1234, 1440, rossi..."></div>
         <div><label class="l">Dal</label><input class="f" type="date" id="mu-da"></div>
         <div><label class="l">Al</label><input class="f" type="date" id="mu-a"></div>
         <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem"><input type="checkbox" id="mu-tolte"> Mostra anche le righe tolte</label></div>
@@ -1333,7 +1333,7 @@ function merceFiltrata(){
     if (r.tolta && !MU.tolte) return false;
     if (MU.da && r.data < MU.da) return false;
     if (MU.a && r.data > MU.a) return false;
-    if (q && !(`${r.numero} ${r.desc} ${r.lotto} ${r.destinatario} ${r.destinazione}`).toLowerCase().includes(q)) return false;
+    if (q && !(`${r.numero} ${r.desc} ${r.lotto} ${r.destinatario} ${r.destinazione} ${r.kg == null ? '' : fmtIT(r.kg, 2, 2) + ' ' + fmtIT(r.kg, 0, 2) + ' ' + String(r.kg).replace('.', ',')}`).toLowerCase().includes(q)) return false;
     return true;
   });
 }
