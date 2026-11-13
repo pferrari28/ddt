@@ -1328,7 +1328,7 @@ function righeMerce(){
   return out;
 }
 function merceFiltrata(){
-  const q = MU.q.trim().toLowerCase();
+  const q = MU.q.trim().toLowerCase().replace(/(\d)\.(\d{1,2})(?!\d)/g, '$1,$2');   // 121.50 come 121,50
   return righeMerce().filter(r => {
     if (r.tolta && !MU.tolte) return false;
     if (MU.da && r.data < MU.da) return false;
