@@ -252,6 +252,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div><label class="l">Dal</label><input class="f" type="date" id="rg-da"></div>
         <div><label class="l">Al</label><input class="f" type="date" id="rg-a"></div>
         <div><label class="l">Stato</label><select class="f" id="rg-st"><option value="">Tutte</option><option value="ok">Valide</option><option value="ann">Annullate</option></select></div>
+        <button class="btn sec" id="rg-azzera" title="Svuota ricerca, date e stato">✕ Azzera selezione</button>
       </div>
       <div class="tw" id="rg-wrap"></div>
     </section>
@@ -269,6 +270,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div><label class="l">Al</label><input class="f" type="date" id="mu-a"></div>
         <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem"><input type="checkbox" id="mu-tolte"> Mostra anche le righe tolte</label></div>
         <button class="btn sec" id="mu-togli-sel" disabled>Togli le selezionate</button>
+        <button class="btn sec" id="mu-azzera" title="Svuota ricerca, date e selezione">✕ Azzera selezione</button>
       </div>
       <div class="tw" id="mu-wrap"></div>
     </section>
@@ -1141,6 +1143,7 @@ $('rg-q').addEventListener('input', () => { REG.q = $('rg-q').value; paintRegist
 $('rg-da').addEventListener('input', () => { REG.da = $('rg-da').value; paintRegistro(); });
 $('rg-a').addEventListener('input', () => { REG.a = $('rg-a').value; paintRegistro(); });
 $('rg-st').addEventListener('change', () => { REG.st = $('rg-st').value; paintRegistro(); });
+$('rg-azzera').addEventListener('click', () => { Object.assign(REG, { q: '', da: '', a: '', st: '' }); $('rg-q').value = $('rg-da').value = $('rg-a').value = $('rg-st').value = ''; paintRegistro(); $('rg-q').focus(); });
 async function cambiaAnno(v){ ANNO = Number(v); await caricaBolle(); $('rg-anno').value = ANNO; $('mu-anno').value = ANNO; paintRegistro(); paintMerce(); }
 $('rg-anno').addEventListener('change', () => cambiaAnno($('rg-anno').value));
 $('mu-anno').addEventListener('change', () => cambiaAnno($('mu-anno').value));
@@ -1359,6 +1362,7 @@ $('mu-q').addEventListener('input', () => { MU.q = $('mu-q').value; paintMerce()
 $('mu-da').addEventListener('input', () => { MU.da = $('mu-da').value; paintMerce(); });
 $('mu-a').addEventListener('input', () => { MU.a = $('mu-a').value; paintMerce(); });
 $('mu-tolte').addEventListener('change', () => { MU.tolte = $('mu-tolte').checked; paintMerce(); });
+$('mu-azzera').addEventListener('click', () => { Object.assign(MU, { q: '', da: '', a: '', tolte: false }); MU.sel.clear(); $('mu-q').value = $('mu-da').value = $('mu-a').value = ''; $('mu-tolte').checked = false; paintMerce(); $('mu-q').focus(); });
 $('mu-togli-sel').addEventListener('click', () => togliRighe([...MU.sel]));
 $('mu-wrap').addEventListener('change', ev => {
   const t = ev.target;
