@@ -1446,16 +1446,15 @@ $('mu-xlsx').addEventListener('click', () => {
   if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
   const righe = merceFiltrata().filter(r => !r.tolta);
   if (!righe.length) { toast('Non ci sono righe da esportare.', true); return; }
-  const intest = ['Data', 'N. DDT', 'Kg', 'Kg/forma', 'Descrizione', 'Lotto', 'Destinatario', 'Destinazione'];
+  const intest = ['Data', 'N. DDT', 'Kg', 'Descrizione', 'Lotto', 'Destinatario', 'Destinazione'];
   const serie = iso => { const [y, m, d] = String(iso).split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };   // data vera di Excel
   const ws = XLSX.utils.aoa_to_sheet([intest, ...righe.map(r => [
     { t: 'n', v: serie(r.data), z: 'dd/mm/yyyy' },
     r.numero,
     r.kg == null ? '' : { t: 'n', v: Number(r.kg), z: '#,##0.00' },
-    r.kgf == null ? '' : { t: 'n', v: r.kgf, z: '#,##0.00' },
     r.desc, r.lotto, r.destinatario, r.destinazione,
   ])]);
-  ws['!cols'] = [12, 8, 14, 11, 48, 18, 34, 44].map(x => ({ wch: x }));
+  ws['!cols'] = [12, 8, 14, 48, 18, 34, 44].map(x => ({ wch: x }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Merce uscita'); XLSX.writeFile(wb, `Merce_uscita_${ANNO}.xlsx`);
 });
 
