@@ -221,6 +221,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <div class="sheetwrap edit" id="sheet-edit"></div>
       <div class="actions" id="act-main" style="margin-top:18px">
         <button class="btn big" id="btn-stampa">🖨️ SALVA E STAMPA</button>
+        <button class="btn sec" id="btn-ordina" hidden title="Mette vicine le righe con la stessa tipologia (A-Z); le righe vuote vanno in fondo">↕ Ordina per tipologia</button>
         <button class="btn sec" id="btn-bozza" title="Salva il DDT a metà, senza numero: lo riprendi quando vuoi">📝 Salva bozza</button>
         <button class="btn sec" id="btn-salva-solo" hidden title="Salva le modifiche senza mandare il DDT alla stampante">💾 Salva senza stampare</button>
         <span class="hint" id="hint-stampa"></span>
@@ -533,13 +534,13 @@ function sheetHTML(d, mode, ctx){
   for (let i = 0; i < N_RIGHE; i++) h += H(18, `<td colspan="2" class="r">${KG('righe.' + i + '.kg')}</td><td colspan="7"${(() => { const t = String((d.righe[i] || {}).desc || '').trim(), isDic = t && dicDi(d).includes(t) && !String((d.righe[i] || {}).kg || '').trim(); return isDic ? ' style="text-align:center;"' : ''; })()}>${T('righe.' + i + '.desc', '', '')}</td><td colspan="2" class="c">${T('righe.' + i + '.lotto', 'c')}</td>`);
   } else {
     const lab = (c, t, cs) => `<td ${cs ? `colspan="${cs}" ` : ''}class="lab m" style="font-size:9.5pt">${t}</td>`;
-    h += H(15.95, S.layout === 'matr' ? lab(0, 'KG') + lab(0, 'DESCRIZIONE DEI BENI', 5) + lab(0, 'MATRICOLA', 2) + lab(0, 'MESE ANNO', 2) + lab(0, 'LOTTO') : lab(0, 'KG') + lab(0, 'DESCRIZIONE DEI BENI', 10));
+    h += H(15.95, S.layout === 'matr' ? lab(0, 'KG') + lab(0, 'DESCRIZIONE DEI BENI', 5) + lab(0, 'MATRICOLA', 2) + lab(0, 'MESE ANNO', 2) + lab(0, 'LOTTO') : lab(0, 'KG') + lab(0, 'DESCRIZIONE DEI BENI', 5) + lab(0, 'TIPOLOGIA', 2) + lab(0, 'LOTTO', 3));
     for (let i = 0; i < S.n; i++) {
       const r = d.righe[i] || {}, used = rigaUsata(d, r), p = 'righe.' + i + '.';
       const dcell = `<td colspan="5" class="c"${E ? ` data-desc="${i}"` : ''} style="font-size:10pt">${used ? esc(S.desc) : ''}</td>`;
       h += H(18, S.layout === 'matr'
         ? `<td class="r">${KG(p + 'kg')}</td>${dcell}<td colspan="2" class="c">${T(p + 'matr', 'c')}</td><td colspan="2" class="c">${E ? `<input data-k="${p}mese" data-fmt="mese" value="${esc(r.mese || '')}" autocomplete="off" class="c">` : esc(r.mese || '')}</td><td class="c">${T(p + 'lotto', 'c')}</td>`
-        : `<td class="r">${KG(p + 'kg')}</td>${dcell}<td colspan="2" class="c b"${E ? ` data-lab="${i}"` : ''}>${used ? 'LOTTO' : ''}</td><td colspan="2" class="c" style="font-size:8pt">${E ? `<input data-k="${p}tag" data-fmt="tag" value="${esc(r.tag || '')}" autocomplete="off" class="c">` : esc(r.tag || '')}</td><td class="c">${T(p + 'lotto', 'c')}</td>`);
+        : `<td class="r">${KG(p + 'kg')}</td>${dcell}<td colspan="2" class="c" style="font-size:8pt">${E ? `<input data-k="${p}tag" data-fmt="tag" value="${esc(r.tag || '')}" autocomplete="off" class="c">` : esc(r.tag || '')}</td><td colspan="3" class="c">${T(p + 'lotto', 'c')}</td>`);
     }
     S.coda.forEach(t => { h += H(18, `<td colspan="11" class="c b" style="font-size:11pt">${esc(t)}</td>`); });
   }
@@ -611,7 +612,7 @@ function evidenziaMedie(){
 }
 function paintSheet(){
   $('sheet-edit').innerHTML = sheetHTML(DOC, 'edit', DOC.edit_id ? { numero: DOC.edit_num, ritiro_data: DOC.ritiro_data, ritiro_ora: DOC.ritiro_ora } : undefined);
-  $('in-copie').value = DOC.copie; paintEditUI(); evidenziaMedie();
+  $('in-copie').value = DOC.copie; paintEditUI(); evidenziaMedie(); $('btn-ordina').hidden = !(DOC.sfr && SFR[DOC.sfr] && SFR[DOC.sfr].layout === 'tag');
 }
 function paintEditUI(){
   const ed = !!(DOC && DOC.edit_id);
@@ -677,7 +678,7 @@ $('in-copie').addEventListener('input', () => { DOC.copie = Math.max(1, Math.min
 
 // tasti di salvataggio/stampa anche in alto: copie sincronizzate con quelle in basso
 (function(){
-  const top = $('act-top'), srcs = ['btn-stampa', 'btn-bozza', 'btn-salva-solo'].map(id => $(id));
+  const top = $('act-top'), srcs = ['btn-stampa', 'btn-ordina', 'btn-bozza', 'btn-salva-solo'].map(id => $(id));
   srcs.forEach(src => {
     const c = document.createElement('button'); c.className = src.className; c.title = src.title || ''; c.dataset.proxy = src.id; top.appendChild(c);
     const sync = () => { c.textContent = src.textContent; c.hidden = src.hidden; c.disabled = src.disabled; };
@@ -705,9 +706,10 @@ SHEET.addEventListener('input', ev => {
   if (el.dataset.kg) fmtMigliaia(el);
   if (el.dataset.peso) { DOC.peso = el.value; DOC.peso_manuale = el.value.trim() !== ''; ricalcolaPeso(); if (!DOC.peso_manuale) DOC.peso = ''; return; }
   // completamento automatico come Excel: propone quanto scritto nelle righe sopra
-  if (/^righe\.\d+\.(desc)$/.test(k) && el.type === 'text' && ev.inputType && ev.inputType.startsWith('insert') && ev.inputType !== 'insertReplacementText' && el.selectionStart === el.value.length && el.value) {
-    const [, ri, campo] = /^righe\.(\d+)\.(desc)$/.exec(k), typed = el.value;
-    for (let j = Number(ri) - 1; j >= 0; j--) { const c = String((DOC.righe[j] || {})[campo] || '').toUpperCase(); if (c.length > typed.length && c.startsWith(typed.toUpperCase())) { el.value = typed + c.slice(typed.length); el.setSelectionRange(typed.length, c.length); break; } }
+  if (/^righe\.\d+\.(desc|tag)$/.test(k) && el.type === 'text' && ev.inputType && ev.inputType.startsWith('insert') && ev.inputType !== 'insertReplacementText' && el.selectionStart === el.value.length && el.value) {
+    const [, ri, campo] = /^righe\.(\d+)\.(desc|tag)$/.exec(k), typed = el.value;
+    const ordine = []; for (let j = Number(ri) - 1; j >= 0; j--) ordine.push(j); if (campo === 'tag') for (let j = Number(ri) + 1; j < DOC.righe.length; j++) ordine.push(j);   // la tipologia si propone anche dalle righe sotto
+    for (const j of ordine) { const c = String((DOC.righe[j] || {})[campo] || '').toUpperCase(); if (c.length > typed.length && c.startsWith(typed.toUpperCase())) { el.value = typed + c.slice(typed.length); el.setSelectionRange(typed.length, c.length); break; } }
   }
   // vettore: «a mezzo» passa su vettore; scelta dall'elenco compila le altre righe
   if (k.startsWith('vettore.') || k === 'targa') {
@@ -1204,6 +1206,13 @@ $('rg-q').addEventListener('input', () => { REG.q = $('rg-q').value; paintRegist
 $('rg-da').addEventListener('input', () => { REG.da = $('rg-da').value; paintRegistro(); });
 $('rg-a').addEventListener('input', () => { REG.a = $('rg-a').value; paintRegistro(); });
 $('rg-st').addEventListener('change', () => { REG.st = $('rg-st').value; paintRegistro(); });
+$('btn-ordina').addEventListener('click', () => {
+  const n = nRighe(DOC), f = x => String(x ?? '').trim().toUpperCase();
+  const righe = DOC.righe.slice(0, n).map((r, i) => ({ r, i, vuota: !(f(r.kg) || f(r.tag) || f(r.lotto)), tag: f(r.tag) }));
+  righe.sort((a, b) => (a.vuota - b.vuota) || ((!a.tag) - (!b.tag)) || a.tag.localeCompare(b.tag) || (a.i - b.i));
+  DOC.righe = righe.map(x => x.r).concat(DOC.righe.slice(n));
+  paintSheet(); toast('Righe ordinate per tipologia');
+});
 $('rg-azzera').addEventListener('click', () => { Object.assign(REG, { q: '', da: '', a: '', st: '' }); $('rg-q').value = $('rg-da').value = $('rg-a').value = $('rg-st').value = ''; paintRegistro(); $('rg-q').focus(); });
 async function cambiaAnno(v){ ANNO = Number(v); await caricaBolle(); $('rg-anno').value = ANNO; $('mu-anno').value = ANNO; paintRegistro(); paintMerce(); }
 $('rg-anno').addEventListener('change', () => cambiaAnno($('rg-anno').value));
