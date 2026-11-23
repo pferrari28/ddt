@@ -266,7 +266,15 @@ table.t tfoot td{font-weight:700;background:var(--head);}
     <section id="p-merce" hidden>
       <div class="page-head">
         <div><h2>Merce uscita</h2><p>Tutte le righe di tutti i DDT in un unico elenco. Togliere una riga da qui non cambia il DDT né il registro bolle.</p></div>
-        <button class="btn" id="mu-xlsx">⬇ Esporta Excel</button>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <button class="btn" id="mu-xlsx">⬇ Esporta Excel</button>
+          <div style="display:flex;gap:14px;align-items:center;font-size:.85rem;flex-wrap:wrap;justify-content:flex-end">
+            <span style="color:var(--muted)">Nell'Excel includi anche:</span>
+            <label style="display:flex;gap:5px;align-items:center" title="Righe con SFRIDI, RITAGLI o CROSTE e DDT dei clienti sfridi"><input type="checkbox" id="mu-x-sfridi"> Sfridi</label>
+            <label style="display:flex;gap:5px;align-items:center" title="Righe con F, FF, FORME o LAVATO nella descrizione"><input type="checkbox" id="mu-x-forme"> Forme</label>
+          </div>
+          <div id="mu-xinfo" style="font-size:.8rem;color:var(--muted)"></div>
+        </div>
       </div>
       <div class="bar">
         <div><label class="l">Anno</label><select class="f" id="mu-anno" style="width:100px"></select></div>
@@ -1390,6 +1398,17 @@ $('sf-xlsx').addEventListener('click', () => {
 });
 
 // ---------- merce uscita (solo Paolo) ----------
+// tipo di riga per l'esportazione: sfridi (SFRIDI / RITAGLI / CROSTE, o DDT delle pagine clienti sfridi) e forme intere (F, FF, FORME, LAVATO)
+function tipoRigaMerce(r){
+  const t = String(r.desc || '').toUpperCase();
+  if (/SFRIDI|RITAGLI|CROSTE/.test(t) || (r.b && r.b.dati && r.b.dati.sfr)) return 'sfridi';
+  if (/(^|[^A-Z0-9])(FORME|FF|F|LAVATO)([^A-Z0-9]|$)/.test(t)) return 'forme';
+  return '';
+}
+function righeDaEsportare(){
+  const inc = { sfridi: $('mu-x-sfridi').checked, forme: $('mu-x-forme').checked };
+  return merceFiltrata().filter(r => !r.tolta).filter(r => { const t = tipoRigaMerce(r); return !t || inc[t]; });
+}
 function righeMerce(){
   const out = [];
   BOLLE.filter(b => !b.annullata).slice().sort((a, b) => a.numero - b.numero).forEach(b => (b.dati.righe || []).forEach((r, i) => {
@@ -1415,6 +1434,7 @@ function paintMerce(){
   if (!ME || !ME.admin) return;
   const lista = merceFiltrata(), valide = lista.filter(r => !r.tolta);
   const tot = valide.reduce((s, r) => s + (r.kg || 0), 0);
+  { const tot0 = valide.length, es = righeDaEsportare().length; $('mu-xinfo').textContent = tot0 === es ? '' : `Nell'Excel: ${es} righe su ${tot0} (esclusi ${tot0 - es} sfridi/forme)`; }
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
   if (!ESCL_OK) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
   $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg</th><th class="n">Kg/forma</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w"></th></tr></thead><tbody>${
@@ -1454,6 +1474,7 @@ function dataDaTesto(t){
   el.addEventListener('keydown', ev => { if (ev.key === 'Enter') applica(true); });
 });
 $('mu-tolte').addEventListener('change', () => { MU.tolte = $('mu-tolte').checked; paintMerce(); });
+['mu-x-sfridi', 'mu-x-forme'].forEach(id => $(id).addEventListener('change', paintMerce));
 $('mu-anom').addEventListener('change', () => { MU.anom = $('mu-anom').checked; paintMerce(); });
 $('mu-azzera').addEventListener('click', () => { Object.assign(MU, { q: '', da: '', a: '', tolte: false, anom: false }); MU.sel.clear(); $('mu-q').value = $('mu-da').value = $('mu-a').value = ''; $('mu-tolte').checked = false; $('mu-anom').checked = false; paintMerce(); $('mu-q').focus(); });
 $('mu-togli-sel').addEventListener('click', () => togliRighe([...MU.sel]));
@@ -1474,8 +1495,8 @@ $('mu-wrap').addEventListener('click', async ev => {
 });
 $('mu-xlsx').addEventListener('click', () => {
   if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
-  const righe = merceFiltrata().filter(r => !r.tolta);
-  if (!righe.length) { toast('Non ci sono righe da esportare.', true); return; }
+  const righe = righeDaEsportare();
+  if (!righe.length) { toast('Non ci sono righe da esportare (sfridi e forme sono esclusi se non spuntati).', true); return; }
   const intest = ['Data', 'N. DDT', 'Kg', 'Descrizione', 'Lotto', 'Destinatario', 'Destinazione'];
   const serie = iso => { const [y, m, d] = String(iso).split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };   // data vera di Excel
   const ws = XLSX.utils.aoa_to_sheet([intest, ...righe.map(r => [
