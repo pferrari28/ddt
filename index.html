@@ -271,7 +271,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
           <div style="display:flex;gap:14px;align-items:center;font-size:.85rem;flex-wrap:wrap;justify-content:flex-end">
             <span style="color:var(--muted)">Nell'Excel includi anche:</span>
             <label style="display:flex;gap:5px;align-items:center" title="Righe con SFRIDI, RITAGLI o CROSTE e DDT dei clienti sfridi"><input type="checkbox" id="mu-x-sfridi"> Sfridi</label>
-            <label style="display:flex;gap:5px;align-items:center" title="Righe con F, FF, FORME o LAVATO nella descrizione"><input type="checkbox" id="mu-x-forme"> Forme</label>
+            <label style="display:flex;gap:5px;align-items:center" title="Righe con F, FF, FORME, LAVATO o FORMAGGINO/I nella descrizione"><input type="checkbox" id="mu-x-forme"> Forme</label>
           </div>
           <div id="mu-xinfo" style="font-size:.8rem;color:var(--muted)"></div>
         </div>
@@ -1402,7 +1402,7 @@ $('sf-xlsx').addEventListener('click', () => {
 function tipoRigaMerce(r){
   const t = String(r.desc || '').toUpperCase();
   if (/SFRIDI|RITAGLI|CROSTE/.test(t) || (r.b && r.b.dati && r.b.dati.sfr)) return 'sfridi';
-  if (/(^|[^A-Z0-9])(FORME|FF|F|LAVATO)([^A-Z0-9]|$)/.test(t)) return 'forme';
+  if (/(^|[^A-Z0-9])(FORME|FF|F|LAVATO)([^A-Z0-9]|$)/.test(t) || /FORMAGGIN[OI]/.test(t)) return 'forme';
   return '';
 }
 function righeDaEsportare(){
