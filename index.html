@@ -271,8 +271,8 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <div class="bar">
         <div><label class="l">Anno</label><select class="f" id="mu-anno" style="width:100px"></select></div>
         <div class="grow"><label class="l">Cerca (descrizione, lotto, numero, kg, destinatario, destinazione)</label><input class="f" id="mu-q" placeholder="es. croste, 26P1234, 1440, rossi..."></div>
-        <div><label class="l">Dal</label><input class="f" type="date" id="mu-da"></div>
-        <div><label class="l">Al</label><input class="f" type="date" id="mu-a"></div>
+        <div><label class="l">Dal</label><input class="f" id="mu-da" placeholder="gg/mm/aa" inputmode="numeric" autocomplete="off" maxlength="10" style="width:112px" title="Scrivi la data come 201126, 20/11/26 o 20/11/2026"></div>
+        <div><label class="l">Al</label><input class="f" id="mu-a" placeholder="gg/mm/aa" inputmode="numeric" autocomplete="off" maxlength="10" style="width:112px" title="Scrivi la data come 201126, 20/11/26 o 20/11/2026"></div>
         <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem"><input type="checkbox" id="mu-tolte"> Mostra anche le righe tolte</label></div>
         <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem" title="Righe con kg per forma fuori dall'intervallo del registro lotti"><input type="checkbox" id="mu-anom"> Solo anomalie peso</label></div>
         <button class="btn sec" id="mu-togli-sel" disabled>Togli le selezionate</button>
@@ -1430,8 +1430,29 @@ async function togliRighe(keys){
   toast(keys.length === 1 ? 'Riga tolta dall\'elenco (il DDT non cambia)' : keys.length + ' righe tolte dall\'elenco (i DDT non cambiano)');
 }
 $('mu-q').addEventListener('input', () => { MU.q = $('mu-q').value; paintMerce(); });
-$('mu-da').addEventListener('input', () => { MU.da = $('mu-da').value; paintMerce(); });
-$('mu-a').addEventListener('input', () => { MU.a = $('mu-a').value; paintMerce(); });
+// date scritte a mano: 201126, 20112026, 20/11/26, 20.11.2026 -> 2026-11-20
+function dataDaTesto(t){
+  t = String(t || '').trim(); if (!t) return '';
+  let g, m, a;
+  const sep = /^(\d{1,2})[\/.\- ](\d{1,2})[\/.\- ](\d{2}|\d{4})$/.exec(t), cifre = /^(\d{2})(\d{2})(\d{2}|\d{4})$/.exec(t);
+  const x = sep || cifre; if (!x) return null;
+  g = Number(x[1]); m = Number(x[2]); a = Number(x[3]); if (a < 100) a += 2000;
+  const d = new Date(Date.UTC(a, m - 1, g)); if (d.getUTCFullYear() !== a || d.getUTCMonth() !== m - 1 || d.getUTCDate() !== g) return null;
+  return `${a}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
+}
+[['mu-da', 'da'], ['mu-a', 'a']].forEach(([id, campo]) => {
+  const el = $(id);
+  const applica = (fine) => {
+    const iso = dataDaTesto(el.value);
+    el.style.borderColor = iso === null && fine ? '#c0392b' : '';
+    if (iso !== null && MU[campo] !== iso) { MU[campo] = iso; paintMerce(); }
+    if (iso === null && !el.value.trim() && MU[campo]) { MU[campo] = ''; paintMerce(); }
+    if (fine && iso) el.value = fmtData(iso);
+  };
+  el.addEventListener('input', () => applica(false));
+  el.addEventListener('blur', () => applica(true));
+  el.addEventListener('keydown', ev => { if (ev.key === 'Enter') applica(true); });
+});
 $('mu-tolte').addEventListener('change', () => { MU.tolte = $('mu-tolte').checked; paintMerce(); });
 $('mu-anom').addEventListener('change', () => { MU.anom = $('mu-anom').checked; paintMerce(); });
 $('mu-azzera').addEventListener('click', () => { Object.assign(MU, { q: '', da: '', a: '', tolte: false, anom: false }); MU.sel.clear(); $('mu-q').value = $('mu-da').value = $('mu-a').value = ''; $('mu-tolte').checked = false; $('mu-anom').checked = false; paintMerce(); $('mu-q').focus(); });
@@ -1461,7 +1482,7 @@ $('mu-xlsx').addEventListener('click', () => {
     { t: 'n', v: serie(r.data), z: 'dd/mm/yyyy' },
     r.numero,
     r.kg == null ? '' : { t: 'n', v: Number(r.kg), z: '#,##0.00' },
-    r.desc, r.lotto, r.destinatario, r.destinazione,
+    r.desc, /^[1-9]\d*$/.test(String(r.lotto || '').trim()) ? { t: 'n', v: Number(String(r.lotto).trim()), z: '0' } : r.lotto, r.destinatario, r.destinazione,
   ])]);
   ws['!cols'] = [12, 8, 14, 48, 18, 34, 44].map(x => ({ wch: x }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Merce uscita'); XLSX.writeFile(wb, `Merce_uscita_${ANNO}.xlsx`);
