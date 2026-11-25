@@ -505,7 +505,7 @@ function nuovoDocSfr(key){ const c = SFR[key]; return nuovoDoc({ ...c.base, n: c
 function rigaUsata(d, r){ const f = x => String(x ?? '').trim(); return d.sfr ? !!(f(r.kg) || f(r.lotto) || f(r.matr) || f(r.mese) || f(r.tag)) : !!(f(r.kg) || f(r.desc) || f(r.lotto)); }
 function sommaKg(d){ let s = 0, any = false; for (const r of d.righe) { const n = kgRiga(r); if (n !== null && !Number.isNaN(n)) { s += n; any = true; } } return any ? Math.round(s * 100) / 100 : null; }
 function pesoNum(d){ if (d.peso_manuale) { const n = numKg(d.peso); return n === null || Number.isNaN(n) ? null : n; } return sommaKg(d); }
-function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni: String(d.annotazioni || '').trim(), copie: d.copie_rub || null }; }
+function datiRubrica(d){ return { ced: d.ced, dest: d.dest, causale: d.causale, a_mezzo: d.a_mezzo, aspetto: d.aspetto, porto: d.porto, vettore: d.vettore, annotazioni: String(d.annotazioni || '').trim(), copie: d.copie_rub || CFG.copie || 2 }; }
 
 // ---------- il modulo (identico a schermo e in stampa) ----------
 // mode: 'edit' (campi compilabili) | 'print' (solo testo)
@@ -650,7 +650,7 @@ function applicaDestinatario(id, fresco){   // fresco = nuovo DDT vuoto per quel
   const r = DEST.find(x => x.id === id), f = x => String(x ?? '').trim();
   if (DOC && !DOC.sfr && !fresco) {   // cambio destinatario: righe, quantità, lotti, peso, colli, data restano; cambiano solo i dati del destinatario
     const eraE = !!DOC.edit_id, vecchieDic = dicDi(DOC), vecchiaAnn = f(DOC.annotazioni);
-    if (!r) { Object.assign(DOC, { dest_id: '', ced: ['', '', ''], dest: ['', '', ''] }); paintSheet(); paintDestSelect(); return; }
+    if (!r) { Object.assign(DOC, { dest_id: '', ced: ['', '', ''], dest: ['', '', ''], copie: CFG.copie || 2, copie_rub: null }); paintSheet(); paintDestSelect(); return; }
     const n = docDaDest(r), nd = r.dati || {};
     // tolgo le diciture del destinatario precedente e metto quelle del nuovo sulle ultime righe
     DOC.righe = DOC.righe.map(x => (vecchieDic.includes(f(x.desc)) && !f(x.kg) && !f(x.lotto)) ? { ...x, desc: '' } : x);
@@ -668,7 +668,7 @@ function applicaDestinatario(id, fresco){   // fresco = nuovo DDT vuoto per quel
       annotazioni: f(n.annotazioni) || (vecchiaAnn && vecchiaAnn === f(annotDi({ dati: (DEST.find(x => x.id === DOC.dest_id) || { dati: {} }).dati })) ? '' : DOC.annotazioni),
       copie_rub: nd.copie || null,
     });
-    if (nd.copie) DOC.copie = nd.copie;
+    DOC.copie = nd.copie || CFG.copie || 2;   // senza copie sue: torna il valore predefinito
     if (n.vettore.some(f)) { DOC.vettore = n.vettore; DOC.a_mezzo = nd.a_mezzo || DOC.a_mezzo; }
     paintSheet(); paintDestSelect(); if (eraE) toast('Destinatario cambiato: ricontrolla i dati e salva');
     return;
@@ -874,7 +874,7 @@ function formDestHTML(r){
 function leggiFormDest(){
   const g = id => $(id).value.trim();
   return { ced: [g('rd-ced0'), g('rd-ced1'), g('rd-ced2')], dest: [g('rd-dest0'), g('rd-dest1'), g('rd-dest2')], causale: g('rd-causale'), a_mezzo: $('rd-amezzo').value,
-    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), diciture: $('rd-dic').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || null };
+    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), diciture: $('rd-dic').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || CFG.copie || 2 };
 }
 function apriFormDest(id, preset, dopo){
   const r = id ? DEST.find(x => x.id === id) : (preset ? { nome: preset.ced && preset.ced[0] || '', dati: preset } : null);
