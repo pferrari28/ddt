@@ -1506,20 +1506,59 @@ $('mu-wrap').addEventListener('click', async ev => {
     ESCL.delete(b.dataset.key); paintMerce(); toast('Riga ripristinata');
   }
 });
-$('mu-xlsx').addEventListener('click', () => {
-  if (!window.XLSX) { toast('Libreria Excel non caricata.', true); return; }
+$('mu-xlsx').addEventListener('click', async () => {
   const righe = righeDaEsportare();
   if (!righe.length) { toast('Non ci sono righe da esportare (sfridi, forme e altre destinazioni sono esclusi se non spuntati).', true); return; }
-  const intest = ['Data', 'N. DDT', 'Kg', 'Descrizione', 'Lotto', 'Destinatario', 'Destinazione'];
+  // Il file è scritto a mano (non con la libreria) per avere la stessa formattazione del foglio LAVORAZIONI:
+  // intestazione gialla in grassetto, bordi sottili, date/kg/DDT/lotto con gli stessi formati.
+  const intest = ['DATA', 'DDT', 'KG DA LAV.', 'PRODOTTO LAVORATO', 'LOTTO', 'DESTINATARIO', 'DESTINAZIONE'];
+  const colL = i => String.fromCharCode(65 + i);
+  const esc = t => String(t == null ? '' : t).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const serie = iso => { const [y, m, d] = String(iso).split('-').map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };   // data vera di Excel
-  const ws = XLSX.utils.aoa_to_sheet([intest, ...righe.map(r => [
-    { t: 'n', v: serie(r.data), z: 'dd/mm/yyyy' },
-    r.numero,
-    r.kg == null ? '' : { t: 'n', v: Number(r.kg), z: '#,##0.00' },
-    r.desc, /^[1-9]\d*$/.test(String(r.lotto || '').trim()) ? { t: 'n', v: Number(String(r.lotto).trim()), z: '0' } : r.lotto, r.destinatario, r.destinazione,
-  ])]);
-  ws['!cols'] = [12, 8, 14, 48, 18, 34, 44].map(x => ({ wch: x }));
-  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Merce uscita'); XLSX.writeFile(wb, `Merce_uscita_${ANNO}.xlsx`);
+  const num = (rif, st, v) => `<c r="${rif}" s="${st}"><v>${v}</v></c>`;
+  const txt = (rif, st, v) => String(v == null ? '' : v) === '' ? `<c r="${rif}" s="${st}"/>` : `<c r="${rif}" s="${st}" t="inlineStr"><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
+  let rows = `<row r="1" ht="30.75" customHeight="1">${intest.map((t, i) => txt(colL(i) + '1', 1, t)).join('')}</row>`;
+  righe.forEach((r, k) => {
+    const n = k + 2, L = String(r.lotto || '').trim();
+    const ddt = Number(r.numero);
+    rows += `<row r="${n}">`
+      + num('A' + n, 2, serie(r.data))
+      + (Number.isFinite(ddt) && String(r.numero).trim() !== '' ? num('B' + n, 3, ddt) : txt('B' + n, 3, r.numero))
+      + (r.kg == null || r.kg === '' ? `<c r="C${n}" s="4"/>` : num('C' + n, 4, Number(r.kg)))
+      + txt('D' + n, 5, r.desc)
+      + (/^[1-9]\d{0,14}$/.test(L) ? num('E' + n, 7, L) : txt('E' + n, 6, r.lotto))
+      + txt('F' + n, 8, r.destinatario) + txt('G' + n, 8, r.destinazione)
+      + '</row>';
+  });
+  const ult = righe.length + 1;
+  const larg = [11.57, 9.57, 17, 36.71, 11.29, 34, 44];
+  const X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+  const sheet = X + `<worksheet ${NS}><sheetViews><sheetView workbookViewId="0" zoomScale="130" zoomScaleNormal="130"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+    + `<sheetFormatPr defaultRowHeight="15"/><cols>${larg.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>`
+    + `<sheetData>${rows}</sheetData><autoFilter ref="A1:G${ult}"/>`
+    + `<ignoredErrors><ignoredError sqref="A1:G${ult}" numberStoredAsText="1" formula="1" formulaRange="1" unlockedFormula="1" evalError="1" twoDigitTextYear="1" listDataValidation="1" calculatedColumn="1"/></ignoredErrors></worksheet>`;
+  const bd = '<border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border>';
+  const xf = (fmt, orizz, vert) => `<xf numFmtId="${fmt}" fontId="${fmt === -1 ? 1 : 0}" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${orizz}"${vert ? ` vertical="${vert}"` : ''}/></xf>`;
+  const styles = X + `<styleSheet ${NS}><numFmts count="1"><numFmt numFmtId="164" formatCode="_-* #,##0.00_-;\\-* #,##0.00_-;_-* &quot;-&quot;??_-;_-@_-"/></numFmts>`
+    + '<fonts count="2"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/></font></fonts>'
+    + '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill></fills>'
+    + `<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>${bd}</borders>`
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    + '<cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    + '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>'
+    + xf(14, 'center') + xf(1, 'center') + xf(164, 'center') + xf(0, 'left') + xf(49, 'center') + xf(0, 'center') + xf(0, 'left')
+    + '</cellXfs><cellStyles count="1"><cellStyle name="Normale" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const file = [
+    ['[Content_Types].xml', X + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels', X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', X + `<workbook ${NS} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="LAVORAZIONI" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ['xl/_rels/workbook.xml.rels', X + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/styles.xml', styles],
+    ['xl/worksheets/sheet1.xml', sheet],
+  ].map(([nome, c]) => ({ nome, blob: new Blob([c], { type: 'application/xml' }) }));
+  const z = await creaZip(file);
+  scarica(new Blob([z], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `Merce_uscita_${ANNO}.xlsx`);
 });
 
 // ---------- impostazioni (Paolo) ----------
