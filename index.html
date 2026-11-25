@@ -254,8 +254,8 @@ table.t tfoot td{font-weight:700;background:var(--head);}
       <div class="bar">
         <div><label class="l">Anno</label><select class="f" id="rg-anno" style="width:100px"></select></div>
         <div class="grow"><label class="l">Cerca (numero, destinatario, descrizione, lotto)</label><input class="f" id="rg-q" placeholder="es. Cerea, 126, LOTTO..."></div>
-        <div><label class="l">Dal</label><input class="f" type="date" id="rg-da"></div>
-        <div><label class="l">Al</label><input class="f" type="date" id="rg-a"></div>
+        <div><label class="l">Dal</label><input class="f" id="rg-da" placeholder="gg/mm/aa" inputmode="numeric" autocomplete="off" maxlength="10" style="width:112px" title="Scrivi la data come 241126, 24/11/26 o 24/11/2026"></div>
+        <div><label class="l">Al</label><input class="f" id="rg-a" placeholder="gg/mm/aa" inputmode="numeric" autocomplete="off" maxlength="10" style="width:112px" title="Scrivi la data come 241126, 24/11/26 o 24/11/2026"></div>
         <div><label class="l">Stato</label><select class="f" id="rg-st"><option value="">Tutte</option><option value="ok">Valide</option><option value="ann">Annullate</option></select></div>
         <button class="btn sec" id="rg-azzera" title="Svuota ricerca, date e stato">✕ Azzera selezione</button>
       </div>
@@ -1212,8 +1212,19 @@ function paintAnni(){
   $('im-ultimo').value = CONT[Number($('im-anno').value)] || 0;
 }
 $('rg-q').addEventListener('input', () => { REG.q = $('rg-q').value; paintRegistro(); });
-$('rg-da').addEventListener('input', () => { REG.da = $('rg-da').value; paintRegistro(); });
-$('rg-a').addEventListener('input', () => { REG.a = $('rg-a').value; paintRegistro(); });
+[['rg-da', 'da'], ['rg-a', 'a']].forEach(([id, campo]) => {   // date scritte a mano (241126, 24/11/26, 24.11.2026), come in Merce uscita
+  const el = $(id);
+  const applica = (fine) => {
+    const iso = dataDaTesto(el.value);
+    el.style.borderColor = iso === null && fine ? '#c0392b' : '';
+    if (iso !== null && REG[campo] !== iso) { REG[campo] = iso; paintRegistro(); }
+    if (iso === null && !el.value.trim() && REG[campo]) { REG[campo] = ''; paintRegistro(); }
+    if (fine && iso) el.value = fmtData(iso);
+  };
+  el.addEventListener('input', () => applica(false));
+  el.addEventListener('blur', () => applica(true));
+  el.addEventListener('keydown', ev => { if (ev.key === 'Enter') applica(true); });
+});
 $('rg-st').addEventListener('change', () => { REG.st = $('rg-st').value; paintRegistro(); });
 $('btn-ordina').addEventListener('click', () => {
   const n = nRighe(DOC), f = x => String(x ?? '').trim().toUpperCase();
