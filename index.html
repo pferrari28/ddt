@@ -643,7 +643,7 @@ function ricalcolaPeso(){
   if (!DOC.peso_manuale) { el.value = kgTxt(sommaKg(DOC)); el.classList.add('auto'); } else el.classList.remove('auto');
 }
 function paintDestSelect(){
-  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + DEST.map(x => `<option value="${x.id}">${esc(x.nome)}</option>`).join('');
+  $('sel-dest').innerHTML = '<option value="">— scegli il destinatario —</option>' + DEST.map(x => `<option value="${x.id}"${x.dati && x.dati.evidenzia ? ' style="font-weight:700"' : ''}>${esc(x.nome)}</option>`).join('');
   $('sel-dest').value = DOC && DOC.dest_id && DEST.some(x => x.id === DOC.dest_id) ? DOC.dest_id : '';
 }
 function applicaDestinatario(id, fresco){   // fresco = nuovo DDT vuoto per quel destinatario; altrimenti si tengono i dati già inseriti
@@ -868,13 +868,14 @@ function formDestHTML(r){
   <label class="l">Annotazioni abituali (facoltativo) — si scrivono nella riga «Annotazioni» del DDT</label><input class="f" id="rd-annot" value="${esc(annotDi(r))}">
   <label class="l">Dicitura fissa nelle ultime righe della descrizione (facoltativo, una riga per riga)</label>
   <textarea class="f" id="rd-dic" rows="2" placeholder="es. SFRIDI DI PARMIGIANO-REGGIANO DESTINATI AD ULTERIORE LAVORAZIONE">${esc(((r && r.dati.diciture) || []).join('\n'))}</textarea>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px"><input type="checkbox" id="rd-evid" ${d.evidenzia ? 'checked' : ''}> Metti in grassetto nell'elenco dei destinatari</label>
   <div class="msg err" id="rd-err"></div>
   <div class="acts"><button class="btn sec" id="rd-annulla">Annulla</button><button class="btn" id="rd-salva">Salva destinatario</button></div>`;
 }
 function leggiFormDest(){
   const g = id => $(id).value.trim();
   return { ced: [g('rd-ced0'), g('rd-ced1'), g('rd-ced2')], dest: [g('rd-dest0'), g('rd-dest1'), g('rd-dest2')], causale: g('rd-causale'), a_mezzo: $('rd-amezzo').value,
-    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), diciture: $('rd-dic').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || CFG.copie || 2 };
+    aspetto: g('rd-aspetto') || 'A VISTA', porto: g('rd-porto'), vettore: [g('rd-vet0'), g('rd-vet1'), ''], annotazioni: g('rd-annot'), diciture: $('rd-dic').value.split('\n').map(x => x.trim()).filter(Boolean), copie: parseInt($('rd-copie').value, 10) || CFG.copie || 2, evidenzia: $('rd-evid').checked || undefined };
 }
 function apriFormDest(id, preset, dopo){
   const r = id ? DEST.find(x => x.id === id) : (preset ? { nome: preset.ced && preset.ced[0] || '', dati: preset } : null);
@@ -891,7 +892,7 @@ function apriFormDest(id, preset, dopo){
   };
 }
 async function salvaDest(id, dati, nome){
-  nome = (nome || dati.ced[0] || '').trim();
+  nome = (nome || dati.ced[0] || '').trim().toUpperCase();   // i nomi in elenco sono sempre in maiuscolo
   let res;
   if (id) res = await sb.from('ddt_destinatari').update({ nome, dati, aggiornato_il: new Date().toISOString() }).eq('id', id).select().single();
   else res = await sb.from('ddt_destinatari').insert({ nome, dati }).select().single();
