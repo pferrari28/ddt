@@ -1240,6 +1240,13 @@ $('rg-azzera').addEventListener('click', () => { Object.assign(REG, { q: '', da:
 async function cambiaAnno(v){ ANNO = Number(v); await caricaBolle(); $('rg-anno').value = ANNO; $('mu-anno').value = ANNO; paintRegistro(); paintMerce(); }
 $('rg-anno').addEventListener('change', () => cambiaAnno($('rg-anno').value));
 $('mu-anno').addEventListener('change', () => cambiaAnno($('mu-anno').value));
+function modificaBolla(row){   // apre il DDT già emesso nel modulo per modificarlo (dal registro bolle o dalla merce uscita)
+  DOC = nuovoDoc(); const { peso_num, numero, ...resto } = row.dati;
+  Object.assign(DOC, clone(resto), { data: row.data, edit_id: row.id, edit_num: row.numero, edit_data: row.data });
+  DOC.righe = clone(Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
+  DOC.copie = row.copie || DOC.copie;
+  go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0);
+}
 $('rg-wrap').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]'); if (!b) return;
   const row = BOLLE.find(x => x.id === b.dataset.id); if (!row) return;
@@ -1247,11 +1254,7 @@ $('rg-wrap').addEventListener('click', async ev => {
     openModal(`<h2>Ristampa DDT n. ${row.numero}</h2><p class="hint">Stessa bolla, stesso numero: non si crea nessun nuovo DDT.</p><label class="l">Copie</label><input class="f" id="rs-copie" type="number" min="1" max="20" value="${row.copie || 1}"><div class="acts"><button class="btn sec" id="rs-no">Annulla</button><button class="btn" id="rs-si">🖨️ Stampa</button></div>`);
     $('rs-no').onclick = closeModal; $('rs-si').onclick = () => { const n = Math.max(1, parseInt($('rs-copie').value, 10) || 1); closeModal(); stampaBolla(row, n); };
   } else if (b.dataset.a === 'mod') {
-    DOC = nuovoDoc(); const { peso_num, numero, ...resto } = row.dati;
-    Object.assign(DOC, clone(resto), { data: row.data, edit_id: row.id, edit_num: row.numero, edit_data: row.data });
-    DOC.righe = clone(Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
-    DOC.copie = row.copie || DOC.copie;
-    go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0);
+    modificaBolla(row);
   } else if (b.dataset.a === 'dup') {
     DOC = nuovoDoc(); const { ritiro_data, ritiro_ora, peso_num, numero, edit_id, edit_num, edit_data, ...resto } = row.dati;
     Object.assign(DOC, clone(resto), { data: oggiISO() });
@@ -1456,7 +1459,7 @@ function paintMerce(){
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
   if (!ESCL_OK && ME.admin) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
   $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c adm-only"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg</th><th class="n adm-only">Kg/forma</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w adm-only"></th></tr></thead><tbody>${
-    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c adm-only">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td class="n adm-only${r.media ? ' mfuori' : ''}" ${r.media ? `title="${esc(testoMedia(r.media))}"` : ''}>${r.kgf == null ? '' : fmtIT(r.kgf, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
+    lista.map(r => `<tr data-bid="${r.b.id}" class="${r.tolta ? 'annullata' : ''}" ${ME.admin ? 'title="Doppio clic: apri il DDT per modificarlo"' : ''}><td class="c adm-only">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td class="n adm-only${r.media ? ' mfuori' : ''}" ${r.media ? `title="${esc(testoMedia(r.media))}"` : ''}>${r.kgf == null ? '' : fmtIT(r.kgf, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
       <td class="act st adm-only">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="3">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 2, 2)}</td><td colspan="6"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
 }
@@ -1500,6 +1503,13 @@ $('mu-wrap').addEventListener('change', ev => {
   const t = ev.target;
   if (t.id === 'mu-all') { merceFiltrata().filter(r => !r.tolta).forEach(r => t.checked ? MU.sel.add(r.key) : MU.sel.delete(r.key)); paintMerce(); }
   else if (t.dataset.sel) { t.checked ? MU.sel.add(t.dataset.sel) : MU.sel.delete(t.dataset.sel); paintMerce(); }
+});
+$('mu-wrap').addEventListener('dblclick', ev => {
+  if (!(ME && ME.admin)) return;
+  if (ev.target.closest('button, input, a')) return;
+  const tr = ev.target.closest('tr[data-bid]'); if (!tr) return;
+  const row = BOLLE.find(x => x.id === tr.dataset.bid); if (!row) return;
+  getSelection().removeAllRanges(); modificaBolla(row);
 });
 $('mu-wrap').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]'); if (!b) return;
