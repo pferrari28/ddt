@@ -162,6 +162,8 @@ table.t tfoot td{font-weight:700;background:var(--head);}
 #reg-print th{background:#E7E6E6;}
 #reg-print td.n{text-align:right;white-space:nowrap;}
 @media (max-width:900px){.app{flex-direction:column;} .side{position:static;height:auto;flex:none;width:100%;} .main{padding:16px;}}
+body.nonadm .adm-only{display:none!important}
+body:not(.nonadm) .solo-sped{display:none}
 </style>
 <script>window.supabase||document.write('<script src="vendor/supabase.js"><\/script>')</script>
 <script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>')</script>
@@ -177,7 +179,7 @@ table.t tfoot td{font-weight:700;background:var(--head);}
     <nav class="tabs" id="tabs">
       <button class="tab-btn" data-p="compila">Nuovo DDT</button>
       <button class="tab-btn" data-p="registro">Registro bolle</button>
-      <button class="tab-btn" data-p="merce" id="tab-merce" hidden>Merce uscita</button>
+      <button class="tab-btn" data-p="merce" id="tab-merce">Merce uscita</button>
       <div class="tab-sep">Clienti sfridi</div>
       <button class="tab-btn" data-p="sf-padania">Padania</button>
       <button class="tab-btn" data-p="sf-rossi">Rossi</button>
@@ -265,8 +267,8 @@ table.t tfoot td{font-weight:700;background:var(--head);}
     <!-- ============ MERCE USCITA (solo Paolo) ============ -->
     <section id="p-merce" hidden>
       <div class="page-head">
-        <div><h2>Merce uscita</h2><p>Tutte le righe di tutti i DDT in un unico elenco. Togliere una riga da qui non cambia il DDT né il registro bolle.</p></div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div><h2>Merce uscita</h2><p><span class="adm-only">Tutte le righe di tutti i DDT in un unico elenco. Togliere una riga da qui non cambia il DDT né il registro bolle.</span><span class="solo-sped">Tutte le righe di tutti i DDT in un unico elenco: usa la ricerca per trovare un prodotto o un lotto.</span></p></div>
+        <div class="adm-only" style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
           <button class="btn" id="mu-xlsx">⬇ Esporta Excel</button>
           <div style="display:flex;gap:14px;align-items:center;font-size:.85rem;flex-wrap:wrap;justify-content:flex-end">
             <span style="color:var(--muted)">Nell'Excel includi anche:</span>
@@ -282,9 +284,9 @@ table.t tfoot td{font-weight:700;background:var(--head);}
         <div class="grow"><label class="l">Cerca (descrizione, lotto, numero, kg, destinatario, destinazione)</label><input class="f" id="mu-q" placeholder="es. croste, 26P1234, 1440, rossi..."></div>
         <div><label class="l">Dal</label><input class="f" id="mu-da" placeholder="gg/mm/aa" inputmode="numeric" autocomplete="off" maxlength="10" style="width:112px" title="Scrivi la data come 201126, 20/11/26 o 20/11/2026"></div>
         <div><label class="l">Al</label><input class="f" id="mu-a" placeholder="gg/mm/aa" inputmode="numeric" autocomplete="off" maxlength="10" style="width:112px" title="Scrivi la data come 201126, 20/11/26 o 20/11/2026"></div>
-        <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem"><input type="checkbox" id="mu-tolte"> Mostra anche le righe tolte</label></div>
-        <div style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem" title="Righe con kg per forma fuori dall'intervallo del registro lotti"><input type="checkbox" id="mu-anom"> Solo anomalie peso</label></div>
-        <button class="btn sec" id="mu-togli-sel" disabled>Togli le selezionate</button>
+        <div class="adm-only" style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem"><input type="checkbox" id="mu-tolte"> Mostra anche le righe tolte</label></div>
+        <div class="adm-only" style="padding-bottom:9px"><label style="display:flex;gap:6px;align-items:center;font-size:.9rem" title="Righe con kg per forma fuori dall'intervallo del registro lotti"><input type="checkbox" id="mu-anom"> Solo anomalie peso</label></div>
+        <button class="btn sec adm-only" id="mu-togli-sel" disabled>Togli le selezionate</button>
         <button class="btn sec" id="mu-azzera" title="Svuota ricerca, date e selezione">✕ Azzera selezione</button>
       </div>
       <div class="tw" id="mu-wrap"></div>
@@ -1445,15 +1447,15 @@ function merceFiltrata(){
   });
 }
 function paintMerce(){
-  if (!ME || !ME.admin) return;
+  if (!ME) return;
   const lista = merceFiltrata(), valide = lista.filter(r => !r.tolta);
   const tot = valide.reduce((s, r) => s + (r.kg || 0), 0);
   { const tot0 = valide.length, es = righeDaEsportare().length; $('mu-xinfo').textContent = tot0 === es ? '' : `Nell'Excel: ${es} righe su ${tot0} (esclusi ${tot0 - es}: sfridi, forme o altre destinazioni)`; }
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
-  if (!ESCL_OK) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
-  $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg</th><th class="n">Kg/forma</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w"></th></tr></thead><tbody>${
-    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td class="n${r.media ? ' mfuori' : ''}" ${r.media ? `title="${esc(testoMedia(r.media))}"` : ''}>${r.kgf == null ? '' : fmtIT(r.kgf, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
-      <td class="act st">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
+  if (!ESCL_OK && ME.admin) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
+  $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c adm-only"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg</th><th class="n adm-only">Kg/forma</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w adm-only"></th></tr></thead><tbody>${
+    lista.map(r => `<tr class="${r.tolta ? 'annullata' : ''}"><td class="c adm-only">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td class="n adm-only${r.media ? ' mfuori' : ''}" ${r.media ? `title="${esc(testoMedia(r.media))}"` : ''}>${r.kgf == null ? '' : fmtIT(r.kgf, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
+      <td class="act st adm-only">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="3">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 2, 2)}</td><td colspan="6"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
 }
 async function togliRighe(keys){
@@ -1584,7 +1586,7 @@ function route(){
   let p = (location.hash || '#compila').slice(1), sfKey = '';
   if (p.startsWith('sf-')) { sfKey = SFR[p.slice(3)] ? p.slice(3) : ''; p = 'compila'; }
   if (!['compila', 'registro', 'merce', 'rubrica', 'vettori', 'impostazioni'].includes(p)) p = 'compila';
-  if ((p === 'impostazioni' || p === 'merce') && !(ME && ME.admin)) p = 'compila';
+  if (p === 'impostazioni' && !(ME && ME.admin)) p = 'compila';
   for (const s of ['compila', 'registro', 'merce', 'rubrica', 'vettori', 'impostazioni']) $('p-' + s).hidden = s !== p;
   const act = sfKey ? 'sf-' + sfKey : p;
   document.querySelectorAll('#tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.p === act));
@@ -1602,10 +1604,8 @@ async function caricaBolle(){
   const { data, error } = await sb.from('ddt_bolle').select('*').eq('anno', ANNO).order('numero', { ascending: false }).limit(5000);
   if (error) throw error; BOLLE = data || []; LAST_B = maxTs(BOLLE);
   ESCL = new Set(); ESCL_OK = true; MU.sel = new Set();
-  if (ME && ME.admin) {
-    const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO);
-    if (r.error) ESCL_OK = false; else (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga));
-  }
+  { const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO);   // le righe tolte da Paolo valgono anche per le spedizioni (sola lettura)
+    if (r.error) { if (ME && ME.admin) ESCL_OK = false; } else (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga)); }
 }
 async function loadData(manuale){
   setStatus('Caricamento…');
@@ -1655,7 +1655,7 @@ async function sincronizza(manuale){
     const c = await sb.from('ddt_contatori').select('*'); if (!c.error) { const nuovo = {}; (c.data || []).forEach(x => nuovo[x.anno] = x.ultimo); if (JSON.stringify(nuovo) !== JSON.stringify(CONT)) { CONT = nuovo; paintNextNum(); } }
     if (BOZ_OK) { const nb = JSON.stringify(BOZZE.map(x => x.id + x.aggiornato_il)); await caricaBozze(); if (nb !== JSON.stringify(BOZZE.map(x => x.id + x.aggiornato_il))) paintBozze(); }
     if (cambiato) {
-      if (ME && ME.admin) { const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO); if (!r.error) { ESCL = new Set(); (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga)); } }
+      { const r = await sb.from('ddt_merce_escluse').select('*').eq('anno', ANNO); if (!r.error) { ESCL = new Set(); (r.data || []).forEach(x => ESCL.add(x.bolla_id + '|' + x.riga)); } }
       paintRegistro(); paintMerce(); if (!$('sf-ledger').hidden) paintSfLedger();
     }
     if (manuale) {   // col tasto si rileggono anche rubrica, vettori e targhe (elenchi piccoli)
@@ -1693,7 +1693,7 @@ async function startApp(){
   if (!NOMI[email]) { showLogin(); return; }
   ME = { email, nome: NOMI[email], admin: email === 'admin@lotti.local' };
   $('utente').innerHTML = 'Utente: <b style="color:#fff">' + esc(ME.nome) + '</b>';
-  $('tab-imp').hidden = !ME.admin; $('tab-merce').hidden = !ME.admin; $('btn-backup').hidden = !ME.admin; $('btn-zip').hidden = !ME.admin;
+  $('tab-imp').hidden = !ME.admin; document.body.classList.toggle('nonadm', !ME.admin); $('btn-backup').hidden = !ME.admin; $('btn-zip').hidden = !ME.admin;
   DOC = DOC || nuovoDoc(); paintSheet();
   await loadData(); route();
 }

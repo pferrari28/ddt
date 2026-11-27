@@ -152,6 +152,8 @@ create policy ddt_bolle_sel on public.ddt_bolle for select to authenticated usin
 drop policy if exists ddt_escl_admin on public.ddt_merce_escluse;
 create policy ddt_escl_admin on public.ddt_merce_escluse for all to authenticated
   using (public.ddt_is_admin()) with check (public.ddt_is_admin());
+drop policy if exists ddt_escl_sel on public.ddt_merce_escluse;   -- le spedizioni vedono la pagina Merce uscita (sola lettura) con le stesse righe tolte
+create policy ddt_escl_sel on public.ddt_merce_escluse for select to authenticated using (public.ddt_ok());
 
 drop policy if exists ddt_sfr_sel on public.ddt_sfridi;
 create policy ddt_sfr_sel on public.ddt_sfridi for select to authenticated using (public.ddt_ok());
