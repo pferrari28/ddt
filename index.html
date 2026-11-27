@@ -1191,7 +1191,7 @@ function bolleFiltrate(){
     if (REG.a && b.data > REG.a) return false;
     if (REG.st === 'ok' && b.annullata) return false;
     if (REG.st === 'ann' && !b.annullata) return false;
-    if (q && !(`${b.numero} ${b.dest_nome} ${b.causale} ${descrDi(b)} ${lottiDi(b)}`).toLowerCase().includes(q)) return false;
+    if (q && !contiene(`${b.numero} ${b.dest_nome} ${b.causale} ${descrDi(b)} ${lottiDi(b)}`, q)) return false;
     return true;
   });
 }
@@ -1435,6 +1435,8 @@ function righeMerce(){
   }));
   return out;
 }
+// ricerca che ignora gli spazi: «CR105» e «CR 105» trovano gli stessi risultati
+function contiene(testo, q){ testo = String(testo).toLowerCase(); return testo.includes(q) || testo.replace(/\s+/g, '').includes(q.replace(/\s+/g, '')); }
 function merceFiltrata(){
   const q = MU.q.trim().toLowerCase().replace(/(\d)\.(\d{1,2})(?!\d)/g, '$1,$2');   // 121.50 come 121,50
   return righeMerce().filter(r => {
@@ -1442,7 +1444,7 @@ function merceFiltrata(){
     if (MU.anom && !r.media) return false;
     if (MU.da && r.data < MU.da) return false;
     if (MU.a && r.data > MU.a) return false;
-    if (q && !(`${r.numero} ${r.desc} ${r.lotto} ${r.destinatario} ${r.destinazione} ${r.kg == null ? '' : fmtIT(r.kg, 2, 2) + ' ' + fmtIT(r.kg, 0, 2) + ' ' + String(r.kg).replace('.', ',')}`).toLowerCase().includes(q)) return false;
+    if (q && !contiene(`${r.numero} ${r.desc} ${r.lotto} ${r.destinatario} ${r.destinazione} ${r.kg == null ? '' : fmtIT(r.kg, 2, 2) + ' ' + fmtIT(r.kg, 0, 2) + ' ' + String(r.kg).replace('.', ',')}`, q)) return false;
     return true;
   });
 }
