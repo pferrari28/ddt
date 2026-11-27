@@ -78,6 +78,7 @@ table.t th.c, table.t td.c{width:1%;}
 table.t td{vertical-align:middle;}
 table.t.tm th, table.t.tm td{padding-left:10px;padding-right:10px;}
 .mfuori{background:#FF8A80 !important;}
+.rigasel{outline:2px solid #1a6fd6 !important;outline-offset:-2px;box-shadow:inset 0 0 0 100px rgba(26,111,214,.16) !important;}   /* riga di provenienza (da Merce uscita): solo a video, non in stampa */
 td.mfuori{background:#FF8A80 !important;font-weight:700;}
 .medie-avviso{background:#FDE3E1;border:1px solid #D64545;border-radius:6px;padding:8px 12px;margin:0 0 10px;font-size:.9rem;line-height:1.45;color:#7A1212;}
 table.t.tm th.w, table.t.tm td.act{width:100%;text-align:right;}
@@ -610,6 +611,14 @@ function righeFuoriMedia(d){
   return out;
 }
 const testoMedia = f => `${fmtKgF(f.media)} kg per forma (previsto ${fmtKgF(f.min)} – ${fmtKgF(f.max)} kg)`;
+let RIGA_SEL = null;   // riga da evidenziare quando si arriva da Merce uscita (solo a video)
+function evidenziaRigaSel(vaiLi){
+  SHEET.querySelectorAll('.rigasel').forEach(el => el.classList.remove('rigasel'));
+  if (RIGA_SEL === null || !DOC || !DOC.edit_id) return;
+  const campi = [...SHEET.querySelectorAll(`[data-k^="righe.${RIGA_SEL}."]`)];
+  campi.forEach(el => { const td = el.closest('td'); if (td) td.classList.add('rigasel'); });
+  if (vaiLi) { const d = campi.find(el => /\.desc$/.test(el.dataset.k)) || campi[0]; if (d) { d.focus({ preventScroll: true }); try { d.setSelectionRange(d.value.length, d.value.length); } catch (e) {} d.scrollIntoView({ block: 'center' }); } }
+}
 function evidenziaMedie(){
   if (!DOC) return;
   const fuori = righeFuoriMedia(DOC), set = new Map(fuori.map(f => [String(f.i), f]));
@@ -623,7 +632,7 @@ function evidenziaMedie(){
 }
 function paintSheet(){
   $('sheet-edit').innerHTML = sheetHTML(DOC, 'edit', DOC.edit_id ? { numero: DOC.edit_num, ritiro_data: DOC.ritiro_data, ritiro_ora: DOC.ritiro_ora } : undefined);
-  $('in-copie').value = DOC.copie; paintEditUI(); evidenziaMedie(); $('btn-ordina').hidden = !(DOC.sfr && SFR[DOC.sfr] && SFR[DOC.sfr].layout === 'tag');
+  $('in-copie').value = DOC.copie; paintEditUI(); evidenziaMedie(); evidenziaRigaSel(); $('btn-ordina').hidden = !(DOC.sfr && SFR[DOC.sfr] && SFR[DOC.sfr].layout === 'tag');
 }
 function paintEditUI(){
   const ed = !!(DOC && DOC.edit_id);
@@ -1240,12 +1249,14 @@ $('rg-azzera').addEventListener('click', () => { Object.assign(REG, { q: '', da:
 async function cambiaAnno(v){ ANNO = Number(v); await caricaBolle(); $('rg-anno').value = ANNO; $('mu-anno').value = ANNO; paintRegistro(); paintMerce(); }
 $('rg-anno').addEventListener('change', () => cambiaAnno($('rg-anno').value));
 $('mu-anno').addEventListener('change', () => cambiaAnno($('mu-anno').value));
-function modificaBolla(row){   // apre il DDT già emesso nel modulo per modificarlo (dal registro bolle o dalla merce uscita)
+function modificaBolla(row, riga){   // apre il DDT già emesso nel modulo per modificarlo (dal registro bolle o dalla merce uscita)
   DOC = nuovoDoc(); const { peso_num, numero, ...resto } = row.dati;
   Object.assign(DOC, clone(resto), { data: row.data, edit_id: row.id, edit_num: row.numero, edit_data: row.data });
   DOC.righe = clone(Array.from({ length: nRighe(DOC) }, (_, i) => (resto.righe || [])[i] || { kg: '', desc: '', lotto: '' }));
   DOC.copie = row.copie || DOC.copie;
+  RIGA_SEL = Number.isInteger(riga) ? riga : null;
   go(DOC.sfr ? 'sf-' + DOC.sfr : 'compila'); paintSheet(); paintDestSelect(); paintNextNum(); window.scrollTo(0, 0);
+  if (RIGA_SEL !== null) setTimeout(() => evidenziaRigaSel(true), 50);
 }
 $('rg-wrap').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]'); if (!b) return;
@@ -1459,7 +1470,7 @@ function paintMerce(){
   $('mu-togli-sel').disabled = !MU.sel.size; $('mu-togli-sel').textContent = MU.sel.size ? `Togli le selezionate (${MU.sel.size})` : 'Togli le selezionate';
   if (!ESCL_OK && ME.admin) { $('mu-wrap').innerHTML = '<div class="empty">Manca la tabella delle righe tolte: riesegui lo script SQL «ddt_setup.sql» in Supabase.</div>'; return; }
   $('mu-wrap').innerHTML = lista.length ? `<table class="t tm"><thead><tr><th class="c adm-only"><input type="checkbox" id="mu-all" ${valide.length && valide.every(r => MU.sel.has(r.key)) ? 'checked' : ''}></th><th class="n">Data</th><th class="n">N. DDT</th><th class="n">Kg</th><th class="n adm-only">Kg/forma</th><th>Descrizione</th><th>Lotto</th><th>Destinatario</th><th>Destinazione</th><th class="w adm-only"></th></tr></thead><tbody>${
-    lista.map(r => `<tr data-bid="${r.b.id}" class="${r.tolta ? 'annullata' : ''}" ${ME.admin ? 'title="Doppio clic: apri il DDT per modificarlo"' : ''}><td class="c adm-only">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td class="n adm-only${r.media ? ' mfuori' : ''}" ${r.media ? `title="${esc(testoMedia(r.media))}"` : ''}>${r.kgf == null ? '' : fmtIT(r.kgf, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
+    lista.map(r => `<tr data-bid="${r.b.id}" data-i="${r.i}" class="${r.tolta ? 'annullata' : ''}" ${ME.admin ? 'title="Doppio clic: apri il DDT per modificarlo"' : ''}><td class="c adm-only">${r.tolta ? '' : `<input type="checkbox" data-sel="${r.key}" ${MU.sel.has(r.key) ? 'checked' : ''}>`}</td><td class="n">${fmtData(r.data)}</td><td class="n"><b>${r.numero}</b></td><td class="n">${r.kg == null ? '' : fmtIT(r.kg, 2, 2)}</td><td class="n adm-only${r.media ? ' mfuori' : ''}" ${r.media ? `title="${esc(testoMedia(r.media))}"` : ''}>${r.kgf == null ? '' : fmtIT(r.kgf, 2, 2)}</td><td style="white-space:nowrap">${esc(r.desc)}</td><td>${esc(r.lotto)}</td><td class="ell" title="${esc(r.destinatario)}">${esc(r.destinatario)}</td><td class="ell" title="${esc(r.destinazione)}">${esc(r.destinazione)}</td>
       <td class="act st adm-only">${r.tolta ? `<span class="badge ann">TOLTA</span> <button class="btn small sec" data-a="rip" data-key="${r.key}">Ripristina</button>` : `<button class="btn small sec" data-a="del" data-key="${r.key}" title="Toglie la riga da questo elenco">✕ Togli</button>`}</td></tr>`).join('')
   }</tbody><tfoot><tr><td colspan="3">Totale (${valide.length} righe)</td><td class="n">${fmtIT(tot, 2, 2)}</td><td colspan="6"></td></tr></tfoot></table>` : '<div class="empty">Nessuna riga di merce per questi filtri.</div>';
 }
@@ -1509,7 +1520,7 @@ $('mu-wrap').addEventListener('dblclick', ev => {
   if (ev.target.closest('button, input, a')) return;
   const tr = ev.target.closest('tr[data-bid]'); if (!tr) return;
   const row = BOLLE.find(x => x.id === tr.dataset.bid); if (!row) return;
-  getSelection().removeAllRanges(); modificaBolla(row);
+  getSelection().removeAllRanges(); modificaBolla(row, Number(tr.dataset.i));
 });
 $('mu-wrap').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-a]'); if (!b) return;
